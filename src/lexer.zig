@@ -148,6 +148,10 @@ pub const Lexer = struct {
     }
 };
 
+// pub fn tokenize(allocator: std.mem.Allocator, lex: Lexer) []const Token {
+//
+// }
+
 const expectEqualDeep = std.testing.expectEqualDeep;
 test "Lexer" {
     const input =
