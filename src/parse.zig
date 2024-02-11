@@ -85,7 +85,13 @@ const Parser = struct {
         defer _ = self.next_token();
         return switch (self.read_token()) {
             .int => |val| Literal{ .int = try std.fmt.parseInt(isize, val, 10) },
-            .flt => |val| Literal{ .flt = try std.fmt.parseFloat(f32, val) },
+            .flt => |val| {
+                // see if it does parse into a float and store as str
+                // this stops a three digit literal from exploding into
+                // a string of digits at codegen
+                _ = try std.fmt.parseFloat(f32, val);
+                return Literal{ .flt = val };
+            },
             .str => |val| Literal{ .str = val },
             .boolean => |val| Literal{ .boolean = val },
             else => ParseError.IllegalLiteral,
@@ -147,8 +153,8 @@ test "Parse into AST" {
     const expected = [_]ASTNode{
         ASTNode{ .definition = .{ .variable = .{ .identifier = "five", .mutable = false, .expression = .{ .literal = .{ .int = 5 } } } } },
         ASTNode{ .definition = .{ .variable = .{ .identifier = "neg_ten", .mutable = false, .expression = .{ .literal = .{ .int = -10 } } } } },
-        ASTNode{ .definition = .{ .variable = .{ .identifier = "pi", .mutable = true, .expression = .{ .literal = .{ .flt = 3.14 } } } } },
-        ASTNode{ .definition = .{ .variable = .{ .identifier = "neg_e", .mutable = true, .expression = .{ .literal = .{ .flt = -2.72 } } } } },
+        ASTNode{ .definition = .{ .variable = .{ .identifier = "pi", .mutable = true, .expression = .{ .literal = .{ .flt = "3.14" } } } } },
+        ASTNode{ .definition = .{ .variable = .{ .identifier = "neg_e", .mutable = true, .expression = .{ .literal = .{ .flt = "-2.72" } } } } },
         ASTNode{ .definition = .{ .variable = .{ .identifier = "hello", .mutable = false, .expression = .{ .literal = .{ .str = "world" } } } } },
     };
 

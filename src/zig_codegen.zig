@@ -59,18 +59,26 @@ fn gen_literal(allocator: std.mem.Allocator, input: Literal) ![]const u8 {
     var output = std.ArrayList(u8).init(allocator);
     defer output.deinit();
 
-    try output.appendSlice(switch (input) {
-        .int => |int| try std.fmt.allocPrint(allocator, "{d}", .{int}),
-        .flt => |flt| try std.fmt.allocPrint(allocator, "{d}", .{flt}),
-        .str => |str| str,
+    switch (input) {
+        .int => |int| {
+            const rv = try std.fmt.allocPrint(allocator, "{d}", .{int});
+            defer allocator.free(rv);
+            try output.appendSlice(rv);
+        },
+        .flt => |flt| try output.appendSlice(flt),
+        .str => |str| {
+            try output.append('"');
+            try output.appendSlice(str);
+            try output.append('"');
+        },
         .boolean => |boolean| {
             if (boolean) {
-                return "true";
+                try output.appendSlice("true");
             } else {
-                return "false";
+                try output.appendSlice("false");
             }
         },
-    });
+    }
 
     return output.toOwnedSlice();
 }
@@ -80,8 +88,8 @@ test "Generate Zig Code" {
     const input = [_]ASTNode{
         ASTNode{ .definition = .{ .variable = .{ .identifier = "five", .mutable = false, .expression = .{ .literal = .{ .int = 5 } } } } },
         ASTNode{ .definition = .{ .variable = .{ .identifier = "neg_ten", .mutable = false, .expression = .{ .literal = .{ .int = -10 } } } } },
-        ASTNode{ .definition = .{ .variable = .{ .identifier = "pi", .mutable = true, .expression = .{ .literal = .{ .flt = 3.14 } } } } },
-        ASTNode{ .definition = .{ .variable = .{ .identifier = "neg_e", .mutable = true, .expression = .{ .literal = .{ .flt = -2.72 } } } } },
+        ASTNode{ .definition = .{ .variable = .{ .identifier = "pi", .mutable = true, .expression = .{ .literal = .{ .flt = "3.14" } } } } },
+        ASTNode{ .definition = .{ .variable = .{ .identifier = "neg_e", .mutable = true, .expression = .{ .literal = .{ .flt = "-2.72" } } } } },
         ASTNode{ .definition = .{ .variable = .{ .identifier = "hello", .mutable = false, .expression = .{ .literal = .{ .str = "world" } } } } },
     };
 
@@ -91,6 +99,7 @@ test "Generate Zig Code" {
         \\var pi = 3.14;
         \\var neg_e = -2.72;
         \\const hello = "world";
+        \\
     ;
 
     const output = try generate(std.testing.allocator, &input);

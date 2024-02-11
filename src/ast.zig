@@ -18,7 +18,7 @@ pub const Expression = union(enum) {
 
 pub const Literal = union(enum) {
     int: isize,
-    flt: f32,
+    flt: []const u8,
     str: []const u8,
     boolean: bool,
 };
