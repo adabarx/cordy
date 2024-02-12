@@ -10,12 +10,20 @@ pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u
     var output = std.ArrayList(u8).init(allocator);
     defer output.deinit();
 
-    for (input) |statement| {
-        try output.appendSlice(switch (statement) {
-            .definition => |def| try gen_definition(allocator, def),
-            .expression => |exp| try gen_expression(allocator, exp),
-            .eof => break,
-        });
+    for (input) |statement| main: {
+        switch (statement) {
+            .definition => |def| {
+                const rv = try gen_definition(allocator, def);
+                defer allocator.free(rv);
+                try output.appendSlice(rv);
+            },
+            .expression => |exp| {
+                const rv = try gen_expression(allocator, exp);
+                defer allocator.free(rv);
+                try output.appendSlice(rv);
+            },
+            .eof => break :main,
+        }
         try output.appendSlice(";\n");
     }
 
@@ -37,7 +45,9 @@ fn gen_definition(allocator: std.mem.Allocator, input: Definition) ![]const u8 {
             try output.appendSlice(variable.identifier);
             try output.appendSlice(" = ");
 
-            try output.appendSlice(try gen_expression(allocator, variable.expression));
+            const rv = try gen_expression(allocator, variable.expression);
+            defer allocator.free(rv);
+            try output.appendSlice(rv);
         },
     }
 
@@ -49,7 +59,11 @@ fn gen_expression(allocator: std.mem.Allocator, input: Expression) ![]const u8 {
     defer output.deinit();
 
     switch (input) {
-        .literal => |lit| try output.appendSlice(try gen_literal(allocator, lit)),
+        .literal => |lit| {
+            const rv = try gen_literal(allocator, lit);
+            defer allocator.free(rv);
+            try output.appendSlice(rv);
+        },
     }
 
     return output.toOwnedSlice();
