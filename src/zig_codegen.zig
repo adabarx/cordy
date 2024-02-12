@@ -8,7 +8,7 @@ const Literal = ast_mod.Literal;
 
 pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u8 {
     var output = std.ArrayList(u8).init(allocator);
-    errdefer output.deinit();
+    defer output.deinit();
 
     for (input) |statement| {
         try output.appendSlice(switch (statement) {
