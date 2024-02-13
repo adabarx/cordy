@@ -7,20 +7,19 @@ const codegen = @import("zig_codegen.zig");
 
 pub fn main() !void {
     // grab the path from the cli args
-    var args = std.process.args();
-    const path: []const u8 = args[1];
+    var arg = std.os.argv[1];
+    const path: []const u8 = std.mem.sliceTo(arg, 0);
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    defer gpa.deinit();
+    defer _ = gpa.deinit();
 
     // read the input file
     const input = try fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
     defer allocator.free(input);
 
     // parse text into tokens
-    var lex = lexer.Lexer.init(input);
-    const tokens = lexer.tokenize(allocator, lex);
+    const tokens = try lexer.tokenize(allocator, input);
     defer allocator.free(tokens);
 
     // parse tokens into abstract syntax tree
@@ -30,7 +29,7 @@ pub fn main() !void {
     // NOTE: this is where we will scan the AST for errors
 
     // generate output code from AST
-    const output = codegen.generate(allocator, ast);
+    const output = try codegen.generate(allocator, ast);
     defer allocator.free(output);
 
     // write to output file
@@ -41,4 +40,8 @@ pub fn main() !void {
     defer output_file.close();
 
     _ = try output_file.writeAll(output);
+}
+
+test "Main" {
+    std.testing.refAllDecls(@This());
 }

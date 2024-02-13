@@ -148,9 +148,18 @@ pub const Lexer = struct {
     }
 };
 
-pub fn tokenize(allocator: std.mem.Allocator, lex: Lexer) []const Token {
-    _ = lex;
-    _ = allocator;
+pub fn tokenize(allocator: std.mem.Allocator, input: []const u8) ![]const Token {
+    var lex = Lexer.init(input);
+    var rv = std.ArrayList(Token).init(allocator);
+    defer rv.deinit();
+
+    while (true) {
+        const tok = lex.next_token();
+        try rv.append(tok);
+        if (tok == .eof) break;
+    }
+
+    return rv.toOwnedSlice();
 }
 
 const expectEqualDeep = std.testing.expectEqualDeep;
