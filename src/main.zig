@@ -12,6 +12,7 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    defer gpa.deinit();
 
     // read the input file
     const input = try fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
