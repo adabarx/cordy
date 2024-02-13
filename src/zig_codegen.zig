@@ -10,7 +10,7 @@ pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u
     var output = std.ArrayList(u8).init(allocator);
     defer output.deinit();
 
-    for (input) |statement| main: {
+    for (input) |statement| {
         switch (statement) {
             .definition => |def| {
                 const rv = try gen_definition(allocator, def);
@@ -22,11 +22,10 @@ pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u
                 defer allocator.free(rv);
                 try output.appendSlice(rv);
             },
-            .eof => break :main,
+            .eof => break,
         }
         try output.appendSlice(";\n");
     }
-
     return output.toOwnedSlice();
 }
 
@@ -118,7 +117,8 @@ test "Generate Zig Code" {
 
     const output = try generate(std.testing.allocator, &input);
 
-    std.debug.print("{s}\n", .{output});
+    // std.debug.print("{s}\n", .{output});
 
     try expectEqualDeep(expected, output);
+    std.testing.allocator.free(output);
 }

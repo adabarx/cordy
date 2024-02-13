@@ -163,4 +163,6 @@ test "Parse into AST" {
     for (ast, 0..) |node, i| {
         try expectEqualDeep(node, expected[i]);
     }
+
+    std.testing.allocator.free(ast);
 }
