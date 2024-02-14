@@ -211,3 +211,50 @@ test "Lexer" {
         try expectEqualDeep(token, tok);
     }
 }
+
+test "tokenize function" {
+    const input =
+        \\let five = 5
+        \\let neg_ten = -10
+        \\let mut pi = 3.14
+        \\let mut neg_e = -2.72
+        \\let hello = "world"
+    ;
+
+    const expected = [_]Token{
+        .let,
+        .{ .ident = "five" },
+        .assign,
+        .{ .int = "5" },
+        .newline,
+        .let,
+        .{ .ident = "neg_ten" },
+        .assign,
+        .{ .int = "-10" },
+        .newline,
+        .let,
+        .mut,
+        .{ .ident = "pi" },
+        .assign,
+        .{ .flt = "3.14" },
+        .newline,
+        .let,
+        .mut,
+        .{ .ident = "neg_e" },
+        .assign,
+        .{ .flt = "-2.72" },
+        .newline,
+        .let,
+        .{ .ident = "hello" },
+        .assign,
+        .{ .str = "world" },
+
+        .eof,
+    };
+
+    const output: []const Token = try tokenize(std.testing.allocator, input);
+
+    try expectEqualDeep(@as([]const Token, &expected), output);
+
+    std.testing.allocator.free(output);
+}

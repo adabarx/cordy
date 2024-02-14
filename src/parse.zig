@@ -86,9 +86,9 @@ const Parser = struct {
         return switch (self.read_token()) {
             .int => |val| Literal{ .int = try std.fmt.parseInt(isize, val, 10) },
             .flt => |val| {
-                // see if it does parse into a float and store as str
-                // this stops a three digit literal from exploding into
-                // a string of digits at codegen
+                // see if it parses into a float and store as str
+                // this stops a three digit literal from exploding
+                // into a long string of digits at codegen
                 _ = try std.fmt.parseFloat(f32, val);
                 return Literal{ .flt = val };
             },
@@ -105,10 +105,10 @@ pub fn parse_tokens(allocator: std.mem.Allocator, tokens: []const Token) []const
     var ast = std.ArrayList(ASTNode).init(allocator);
     defer ast.deinit();
 
-    while (true) main_loop: {
+    while (true) {
         const node = parser.parse_statement() catch |err| {
             std.log.err("Error: {}", .{err});
-            break :main_loop;
+            break;
         };
         if (node == .eof) break;
         ast.append(node) catch unreachable;
