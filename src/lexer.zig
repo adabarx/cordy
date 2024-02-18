@@ -7,6 +7,8 @@ pub const Token = union(enum) {
     str: []const u8,
     boolean: bool,
 
+    binary_operator: BinaryOperator,
+
     let,
     mut,
     dash,
@@ -26,6 +28,13 @@ pub const Token = union(enum) {
         });
         return map.get(ident);
     }
+};
+
+pub const BinaryOperator = union(enum) {
+    add,
+    subtract,
+    multiply,
+    divide,
 };
 
 fn isLetter(ch: u8) bool {
