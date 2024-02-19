@@ -6,18 +6,20 @@ const Expression = ast_mod.Expression;
 const Literal = ast_mod.Literal;
 
 const Token = @import("lexer.zig").Token;
-
-const ParseError = error{
-    IllegalStatement,
-    IllegalLetIdent,
-    IllegalLetAssign,
-    IllegalExpression,
-    IllegalLiteral,
-};
+const BinaryOperator = @import("lexer.zig").BinaryOperator;
 
 const Parser = struct {
     position: usize = 0,
     input: []const Token,
+
+    const ParseError = error{
+        IllegalStatement,
+        IllegalLetIdent,
+        IllegalLetAssign,
+        IllegalExpression,
+        IllegalLiteral,
+        ExpectedBinaryOperator,
+    };
 
     const Self = @This();
 
@@ -43,8 +45,7 @@ const Parser = struct {
         return switch (self.read_token()) {
             .let => try self.parse_let_statement(),
             .int, .flt, .str, .boolean => {
-                const lit = try self.parse_literal();
-                return ASTNode{ .expression = .{ .literal = lit } };
+                return ASTNode{ .expression = try self.parse_expression(true) };
             },
             .eof => return ASTNode.eof,
             else => ParseError.IllegalStatement,
@@ -67,18 +68,50 @@ const Parser = struct {
                 return ASTNode{ .definition = .{ .variable = .{
                     .identifier = ident,
                     .mutable = mutt,
-                    .expression = try self.parse_expression(),
+                    .expression = try self.parse_expression(true),
                 } } };
             },
             else => ParseError.IllegalLetAssign,
         };
     }
 
-    fn parse_expression(self: *Self) !Expression {
-        return switch (self.read_token()) {
+    fn parse_expression(self: *Self, check_binary: bool) !Expression {
+        const primary_expr = switch (self.read_token()) {
             .int, .flt, .str, .boolean => Expression{ .literal = try self.parse_literal() },
             else => ParseError.IllegalExpression,
         };
+        return if (check_binary) {
+            switch (self.peek_token(1)) {
+                .binary_operator => self.parse_binary_expression(primary_expr, 0),
+                else => primary_expr,
+            }
+        } else primary_expr;
+    }
+
+    fn parse_binary_expression(self: *Self, lhs: Expression, precedence: u8) !Expression {
+        var lookahead: BinaryOperator =
+            try if (self.next_token().get_binary_operator()) |op| op else ParseError.ExpectedBinaryOperator;
+
+        var rv = lhs;
+
+        while (lookahead.precedence() >= precedence) {
+            const curr_op = lookahead;
+            _ = self.next_token();
+            var rhs = try self.parse_expression(false);
+            lookahead =
+                if (self.next_token().get_binary_operator()) |op| op else return .{ .binary = .{
+                .lhs = lhs,
+                .operator = curr_op,
+                .rhs = rhs,
+            } };
+
+            while (lookahead.precedence() > curr_op.precedence()) {
+                rhs = self.parse_binary_expression(rhs, lookahead.precedence());
+                lookahead = self.next_token();
+            }
+            rv = .{ .binary = .{ .lhs = lhs, .operator = curr_op, .rhs = rhs } };
+        }
+        return rv;
     }
 
     fn parse_literal(self: *Self) !Literal {

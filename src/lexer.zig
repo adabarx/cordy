@@ -8,6 +8,7 @@ pub const Token = union(enum) {
     boolean: bool,
 
     binary_operator: BinaryOperator,
+    unary_prefix_operator: UnaryPrefixOperator,
 
     let,
     mut,
@@ -17,6 +18,8 @@ pub const Token = union(enum) {
     cantTouchThis,
     eof,
     illegal,
+
+    const Self = @This();
 
     fn keyword(ident: []const u8) ?Token {
         const map = std.ComptimeStringMap(Token, .{
@@ -28,6 +31,18 @@ pub const Token = union(enum) {
         });
         return map.get(ident);
     }
+
+    pub fn get_binary_operator(self: *Self) ?BinaryOperator {
+        return switch (self) {
+            .binary_operator => |op| op,
+            else => null,
+        };
+    }
+};
+
+pub const UnaryPrefixOperator = union(enum) {
+    not,
+    negative,
 };
 
 pub const BinaryOperator = union(enum) {
@@ -35,6 +50,16 @@ pub const BinaryOperator = union(enum) {
     subtract,
     multiply,
     divide,
+
+    const Self = @This();
+    fn precedence(self: *Self) u8 {
+        return switch (self) {
+            .divide => 2,
+            .multiply => 2,
+            .add => 1,
+            .subtract => 1,
+        };
+    }
 };
 
 fn isLetter(ch: u8) bool {
@@ -69,13 +94,17 @@ pub const Lexer = struct {
             '\n' => .newline,
             '=' => .assign,
             '"' => .{ .str = self.read_str() },
+            '!' => .{ .unary_prefix_operator = .not },
             '-' => {
                 if (isNumber(self.peek_char())) {
-                    return self.read_number();
+                    return .{ .unary_prefix_operator = .negative };
                 } else {
-                    return .dash;
+                    return .{ .binary_operator = .subtract };
                 }
             },
+            '+' => .{ .binary_operator = .add },
+            '*' => .{ .binary_operator = .multiply },
+            '/' => .{ .binary_operator = .divide },
             '0'...'9' => return self.read_number(),
             'a'...'z', 'A'...'Z', '_' => {
                 const ident = self.read_identifier();

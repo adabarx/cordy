@@ -1,3 +1,5 @@
+const BinaryOperator = @import("lexer.zig").BinaryOperator;
+
 pub const ASTNode = union(enum) {
     definition: Definition,
     expression: Expression,
@@ -12,9 +14,11 @@ pub const Definition = union(enum) {
     },
 };
 
-pub const Expression = union(enum) {
-    literal: Literal,
-};
+pub const Expression = union(enum) { literal: Literal, binary: struct {
+    lhs: Expression,
+    operator: BinaryOperator,
+    rhs: Expression,
+} };
 
 pub const Literal = union(enum) {
     int: isize,
