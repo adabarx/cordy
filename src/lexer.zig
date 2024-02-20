@@ -51,13 +51,10 @@ pub const BinaryOperator = union(enum) {
     multiply,
     divide,
 
-    const Self = @This();
-    fn precedence(self: *Self) u8 {
+    fn precedence(self: *BinaryOperator) u8 {
         return switch (self) {
-            .divide => 2,
-            .multiply => 2,
-            .add => 1,
-            .subtract => 1,
+            .multiply, .divide => 2,
+            .add, .subtract => 1,
         };
     }
 };
@@ -95,13 +92,9 @@ pub const Lexer = struct {
             '=' => .assign,
             '"' => .{ .str = self.read_str() },
             '!' => .{ .unary_prefix_operator = .not },
-            '-' => {
-                if (isNumber(self.peek_char())) {
-                    return .{ .unary_prefix_operator = .negative };
-                } else {
-                    return .{ .binary_operator = .subtract };
-                }
-            },
+            '-' => 
+                if (isNumber(self.peek_char())) .{ .unary_prefix_operator = .negative } 
+                else .{ .binary_operator = .subtract },
             '+' => .{ .binary_operator = .add },
             '*' => .{ .binary_operator = .multiply },
             '/' => .{ .binary_operator = .divide },
@@ -180,7 +173,10 @@ pub const Lexer = struct {
     }
 
     fn skip_whitespace(self: *Self) void {
-        while (self.ch == ' ' or self.ch == '\t') {
+        while (
+            self.ch == ' ' or self.ch == '\t' or
+            (self.ch == '\n' and self.peek_char() == '\n')
+        ) {
             self.read_char();
         }
     }
@@ -220,7 +216,8 @@ test "Lexer" {
         .let,
         .{ .ident = "neg_ten" },
         .assign,
-        .{ .int = "-10" },
+        .{ .unary_prefix_operator = .negative },
+        .{ .int = "10" },
         .newline,
         .let,
         .mut,
@@ -232,7 +229,8 @@ test "Lexer" {
         .mut,
         .{ .ident = "neg_e" },
         .assign,
-        .{ .flt = "-2.72" },
+        .{ .unary_prefix_operator = .negative },
+        .{ .flt = "2.72" },
         .newline,
         .let,
         .{ .ident = "hello" },
@@ -244,7 +242,6 @@ test "Lexer" {
 
     for (expected) |token| {
         const tok = lex.next_token();
-
         try expectEqualDeep(token, tok);
     }
 }
@@ -267,7 +264,8 @@ test "tokenize function" {
         .let,
         .{ .ident = "neg_ten" },
         .assign,
-        .{ .int = "-10" },
+        .{ .unary_prefix_operator = .negative },
+        .{ .int = "10" },
         .newline,
         .let,
         .mut,
@@ -279,7 +277,8 @@ test "tokenize function" {
         .mut,
         .{ .ident = "neg_e" },
         .assign,
-        .{ .flt = "-2.72" },
+        .{ .unary_prefix_operator = .negative },
+        .{ .flt = "2.72" },
         .newline,
         .let,
         .{ .ident = "hello" },
@@ -290,8 +289,68 @@ test "tokenize function" {
     };
 
     const output: []const Token = try tokenize(std.testing.allocator, input);
+    defer std.testing.allocator.free(output);
 
     try expectEqualDeep(@as([]const Token, &expected), output);
+}
 
-    std.testing.allocator.free(output);
+test "remove excessive newlines" {
+    const input =
+        \\let five = 5
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\
+        \\let neg_ten = -10
+        \\let mut pi = 3.14
+        \\let mut neg_e = -2.72
+        \\let hello = "world"
+    ;
+
+    const expected = [_]Token{
+        .let,
+        .{ .ident = "five" },
+        .assign,
+        .{ .int = "5" },
+        .newline,
+        .let,
+        .{ .ident = "neg_ten" },
+        .assign,
+        .{ .unary_prefix_operator = .negative },
+        .{ .int = "10" },
+        .newline,
+        .let,
+        .mut,
+        .{ .ident = "pi" },
+        .assign,
+        .{ .flt = "3.14" },
+        .newline,
+        .let,
+        .mut,
+        .{ .ident = "neg_e" },
+        .assign,
+        .{ .unary_prefix_operator = .negative },
+        .{ .flt = "2.72" },
+        .newline,
+        .let,
+        .{ .ident = "hello" },
+        .assign,
+        .{ .str = "world" },
+
+        .eof,
+    };
+
+    const output: []const Token = try tokenize(std.testing.allocator, input);
+    defer std.testing.allocator.free(output);
+
+    try expectEqualDeep(@as([]const Token, &expected), output);
 }
