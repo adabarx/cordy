@@ -14,11 +14,15 @@ pub const Definition = union(enum) {
     },
 };
 
-pub const Expression = union(enum) { literal: Literal, binary: struct {
-    lhs: Expression,
-    operator: BinaryOperator,
-    rhs: Expression,
-} };
+pub const Expression = union(enum) {
+    literal: Literal,
+    identifier: []const u8,
+    binary: struct {
+        lhs: Expression,
+        operator: BinaryOperator,
+        rhs: Expression,
+    }
+};
 
 pub const Literal = union(enum) {
     int: isize,

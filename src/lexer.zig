@@ -196,7 +196,6 @@ pub fn tokenize(allocator: std.mem.Allocator, input: []const u8) ![]const Token 
         try rv.append(tok);
         if (tok == .eof) break;
     }
-
     return rv.toOwnedSlice();
 }
 
