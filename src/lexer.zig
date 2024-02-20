@@ -187,10 +187,21 @@ pub fn tokenize(allocator: std.mem.Allocator, input: []const u8) ![]const Token 
     var rv = std.ArrayList(Token).init(allocator);
     defer rv.deinit();
 
+    var curr_token = lex.next_token();
     while (true) {
-        const tok = lex.next_token();
-        try rv.append(tok);
-        if (tok == .eof) break;
+        var next_token = lex.next_token();
+
+        if (curr_token == .newline and next_token == .binary_operator) {
+            curr_token = next_token;
+            next_token = lex.next_token();
+        }
+        if (curr_token == .binary_operator and next_token == .newline) {
+            next_token = lex.next_token();
+        }
+
+        try rv.append(curr_token);
+        if (curr_token == .eof) break;
+        curr_token = next_token;
     }
     return rv.toOwnedSlice();
 }
@@ -345,6 +356,34 @@ test "remove excessive newlines" {
         .{ .ident = "hello" },
         .assign,
         .{ .str = "world" },
+
+        .eof,
+    };
+
+    const output: []const Token = try tokenize(std.testing.allocator, input);
+    defer std.testing.allocator.free(output);
+
+    try expectEqualDeep(@as([]const Token, &expected), output);
+}
+
+test "remove newlines between binary operators" {
+    const input =
+        \\let five = 5
+        \\    + 2
+        \\    - 4
+        \\
+    ;
+
+    const expected = [_]Token{
+        .let,
+        .{ .ident = "five" },
+        .assign,
+        .{ .int = "5" },
+        .{ .binary_operator = .add },
+        .{ .int = "2" },
+        .{ .binary_operator = .subtract },
+        .{ .int = "4" },
+        .newline,
 
         .eof,
     };
