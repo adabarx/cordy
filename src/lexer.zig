@@ -371,12 +371,24 @@ test "remove newlines between binary operators" {
         \\let five = 5
         \\    + 2
         \\    - 4
+        \\let six = 5 +
+        \\    2 -
+        \\    4
         \\
     ;
 
     const expected = [_]Token{
         .let,
         .{ .ident = "five" },
+        .assign,
+        .{ .int = "5" },
+        .{ .binary_operator = .add },
+        .{ .int = "2" },
+        .{ .binary_operator = .subtract },
+        .{ .int = "4" },
+        .newline,
+        .let,
+        .{ .ident = "six" },
         .assign,
         .{ .int = "5" },
         .{ .binary_operator = .add },
