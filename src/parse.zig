@@ -41,7 +41,7 @@ const Parser = struct {
         return self.input[self.position + spaces];
     }
 
-    pub fn parse_statement(self: *Self) !ASTNode {
+    pub fn parse_statement(self: *Self) ParseError!ASTNode {
         while (self.read_token() == .newline) _ = self.next_token();
 
         return switch (self.read_token()) {
@@ -54,7 +54,7 @@ const Parser = struct {
         };
     }
 
-    fn parse_let_statement(self: *Self) !ASTNode {
+    fn parse_let_statement(self: *Self) ParseError!ASTNode {
         var mutt = false;
         if (self.next_token() == .mut) {
             mutt = true;
@@ -115,7 +115,7 @@ const Parser = struct {
         }
     }
 
-    fn parse_literal(self: *Self) !Literal {
+    fn parse_literal(self: *Self) ParseError!Literal {
         defer _ = self.next_token();
         return switch (self.read_token()) {
             .int => |val| Literal{ .int = std.fmt.parseInt(isize, val, 10) catch return ParseError.CantParseInt },
@@ -212,10 +212,9 @@ test "Parse into AST" {
     };
 
     const ast = parse_tokens(std.testing.allocator, &input);
+    defer std.testing.allocator.free(ast);
 
     for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
-
-    std.testing.allocator.free(ast);
 }
 
 test "single binary operator" {
@@ -230,20 +229,20 @@ test "single binary operator" {
 
         .eof,
     };
-    const expected = [_]ASTNode {
+    const expected =
         ASTNode {
             .definition {
                 .variable {
                     .identifier = "five",
                     .mutable = false,
-                    .expression = Expression {
+                    .expression = &Expression {
                         .binary = .{
-                            .lhs = Expression {
+                            .lhs = &Expression {
                                 .literal = .{
                                     .int = 5
                                 }
                             },
-                            .rhs = Expression {
+                            .rhs = &Expression {
                                 .literal = .{
                                     .int = 7
                                 }
@@ -253,13 +252,12 @@ test "single binary operator" {
                     }
                 }
             }
-        }
-    };
+        };
 
     const ast = parse_tokens(std.testing.allocator, input);
     defer std.testing.allocator.free(ast);
 
-    for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
+    try expectEqualDeep(ast[0], expected);
 }
 
 test "multiple binary operator same precendence" {
@@ -359,7 +357,7 @@ test "multiple binary operator different precendence" {
         .eof,
     };
     const expected = [_]ASTNode {
-        ASTNode{
+        ASTNode {
             .definition {
                 .variable {
                     .identifier = "five",
