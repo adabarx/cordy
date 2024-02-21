@@ -63,6 +63,8 @@ fn gen_expression(allocator: std.mem.Allocator, input: Expression) ![]const u8 {
             defer allocator.free(rv);
             try output.appendSlice(rv);
         },
+        .binary => unreachable,
+        .identifier => unreachable,
     }
 
     return output.toOwnedSlice();

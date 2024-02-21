@@ -1,9 +1,9 @@
 const std = @import("std");
 
-const ast_mod = @import("ast.zig");
-const ASTNode = ast_mod.ASTNode;
-const Expression = ast_mod.Expression;
-const Literal = ast_mod.Literal;
+const ast_module = @import("ast.zig");
+const ASTNode = ast_module.ASTNode;
+const Expression = ast_module.Expression;
+const Literal = ast_module.Literal;
 
 const Token = @import("lexer.zig").Token;
 const BinaryOperator = @import("lexer.zig").BinaryOperator;
@@ -18,6 +18,9 @@ const Parser = struct {
         IllegalLetAssign,
         IllegalExpression,
         IllegalLiteral,
+
+        CantParseFloat,
+        CantParseInt,
     };
 
     const Self = @This();
@@ -44,7 +47,7 @@ const Parser = struct {
         return switch (self.read_token()) {
             .let => try self.parse_let_statement(),
             .int, .flt, .str, .boolean => {
-                return ASTNode{ .expression = try self.parse_expression(0) };
+                return ASTNode{ .expression = (try self.parse_expression(0)).* };
             },
             .eof => return ASTNode.eof,
             else => ParseError.IllegalStatement,
@@ -67,22 +70,21 @@ const Parser = struct {
                 return .{ .definition = .{ .variable = .{
                     .identifier = ident,
                     .mutable = mutt,
-                    .expression = try self.parse_expression(0),
+                    .expression = (try self.parse_expression(0)).*,
                 } } };
             },
             else => ParseError.IllegalLetAssign,
         };
     }
 
-    fn parse_expr_leaf(self: *Self) !Expression {
-        std.debug.print("\nparse leaf\n", .{});
+    fn parse_expr_leaf(self: *Self) ParseError!*const Expression {
         return switch (self.read_token()) {
-            .int, .flt, .str, .boolean => Expression{ .literal = try self.parse_literal() },
+            .int, .flt, .str, .boolean => &Expression{ .literal = try self.parse_literal() },
             else => ParseError.IllegalExpression,
         };
     }
 
-    fn parse_expression(self: *Self, precedence: u8) !Expression {
+    fn parse_expression(self: *Self, precedence: u8) ParseError!*const Expression {
         var leaf = try self.parse_expr_leaf();
         while (true) {
             var bin_exp = try self.parse_binary_expression(leaf, precedence);
@@ -92,20 +94,20 @@ const Parser = struct {
         return leaf;
     }
 
-    fn parse_binary_expression(self: *Self, lhs: Expression, precedence: u8) !Expression {
+    fn parse_binary_expression(self: *Self, lhs: *const Expression, precedence: u8) ParseError!*const Expression {
         // if precedence decreases: left to right (non recursive)
         // if precedence increases: right to left (recursive)
         var curr_operator: BinaryOperator =
-            try if (self.next_token().get_binary_operator()) |op| op
+            if (self.next_token().get_binary_operator()) |op| op
             else return lhs;
 
         _ = self.next_token();
         if (curr_operator.precedence() <= precedence) {
-            return .{
+            return &Expression {
                 .binary = .{
                     .lhs = lhs,
                     .operator = curr_operator,
-                    .rhs = self.parse_expr_leaf(),
+                    .rhs = try self.parse_expr_leaf(),
                 }
             };
         } else {
@@ -116,12 +118,12 @@ const Parser = struct {
     fn parse_literal(self: *Self) !Literal {
         defer _ = self.next_token();
         return switch (self.read_token()) {
-            .int => |val| Literal{ .int = try std.fmt.parseInt(isize, val, 10) },
+            .int => |val| Literal{ .int = std.fmt.parseInt(isize, val, 10) catch return ParseError.CantParseInt },
             .flt => |val| {
                 // see if it parses into a float and store as str
                 // this stops a three digit literal from exploding
                 // into a long string of digits at codegen
-                _ = try std.fmt.parseFloat(f32, val);
+                _ = std.fmt.parseFloat(f32, val) catch return ParseError.CantParseFloat;
                 return Literal{ .flt = val };
             },
             .str => |val| Literal{ .str = val },

@@ -32,8 +32,8 @@ pub const Token = union(enum) {
         return map.get(ident);
     }
 
-    pub fn get_binary_operator(self: *Self) ?BinaryOperator {
-        return switch (self) {
+    pub fn get_binary_operator(self: *const Self) ?BinaryOperator {
+        return switch (self.*) {
             .binary_operator => |op| op,
             else => null,
         };
@@ -45,14 +45,14 @@ pub const UnaryPrefixOperator = union(enum) {
     negative,
 };
 
-pub const BinaryOperator = union(enum) {
+pub const BinaryOperator = enum {
     add,
     subtract,
     multiply,
     divide,
 
-    fn precedence(self: *BinaryOperator) u8 {
-        return switch (self) {
+    pub fn precedence(self: *BinaryOperator) u8 {
+        return switch (self.*) {
             .multiply, .divide => 2,
             .add, .subtract => 1,
         };

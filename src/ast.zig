@@ -18,9 +18,9 @@ pub const Expression = union(enum) {
     literal: Literal,
     identifier: []const u8,
     binary: struct {
-        lhs: Expression,
+        lhs: *const Expression,
         operator: BinaryOperator,
-        rhs: Expression,
+        rhs: *const Expression,
     }
 };
 
