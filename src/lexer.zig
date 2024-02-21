@@ -373,6 +373,9 @@ test "remove newlines between binary operators" {
         \\    - 4
         \\let six = 5 +
         \\    2 -
+        \\
+        \\
+        \\
         \\    4
         \\
     ;
