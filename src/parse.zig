@@ -64,7 +64,7 @@ const Parser = struct {
         return switch (self.next_token()) {
             .assign => {
                 _ = self.next_token();
-                return ASTNode{ .definition = .{ .variable = .{
+                return .{ .definition = .{ .variable = .{
                     .identifier = ident,
                     .mutable = mutt,
                     .expression = try self.parse_expression(0),
@@ -149,258 +149,259 @@ pub fn parse_tokens(allocator: std.mem.Allocator, tokens: []const Token) []const
     return ast.toOwnedSlice() catch unreachable;
 }
 
-// const expectEqualDeep = std.testing.expectEqualDeep;
-// test "Parse into AST" {
-//     const input = [_]Token{
-//         .let, .{ .ident = "five" }, .assign, .{ .int = "5" }, .newline,
-//         .let, .{ .ident = "neg_ten" }, .assign, .{ .int = "-10" }, .newline,
-//         .let, .mut, .{ .ident = "pi" }, .assign, .{ .flt = "3.14" }, .newline,
-//         .let, .mut, .{ .ident = "neg_e" }, .assign, .{ .flt = "-2.72" }, .newline,
-//         .let, .{ .ident = "hello" }, .assign, .{ .str = "world" }, .newline,
-//
-//         .eof,
-//     };
-//
-//     const expected = [_]ASTNode {
-//         ASTNode {
-//             .definition = .{
-//                 .variable = .{
-//                     .identifier = "five",
-//                     .mutable = false,
-//                     .expression = .{ .literal = .{ .int = 5 } }
-//                 }
-//             }
-//         },
-//         ASTNode {
-//             .definition = .{
-//                 .variable = .{
-//                     .identifier = "neg_ten",
-//                     .mutable = false,
-//                     .expression = .{ .literal = .{ .int = -10 } }
-//                 }
-//             }
-//         },
-//         ASTNode {
-//             .definition = .{
-//                 .variable = .{
-//                     .identifier = "pi",
-//                     .mutable = true,
-//                     .expression = .{ .literal = .{ .flt = "3.14" } }
-//                 }
-//             }
-//         },
-//         ASTNode {
-//             .definition = .{
-//                 .variable = .{
-//                     .identifier = "neg_e",
-//                     .mutable = true,
-//                     .expression = .{ .literal = .{ .flt = "-2.72" } }
-//                 }
-//             }
-//         },
-//         ASTNode {
-//             .definition = .{
-//                 .variable = .{
-//                     .identifier = "hello",
-//                     .mutable = false,
-//                     .expression = .{ .literal = .{ .str = "world" } }
-//                 }
-//             }
-//         },
-//     };
-//
-//     const ast = parse_tokens(std.testing.allocator, &input);
-//
-//     for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
-//
-//     std.testing.allocator.free(ast);
-// }
+const expectEqualDeep = std.testing.expectEqualDeep;
+test "Parse into AST" {
+    const input = [_]Token{
+        .let, .{ .ident = "five" }, .assign, .{ .int = "5" }, .newline,
+        .let, .{ .ident = "neg_ten" }, .assign, .{ .int = "-10" }, .newline,
+        .let, .mut, .{ .ident = "pi" }, .assign, .{ .flt = "3.14" }, .newline,
+        .let, .mut, .{ .ident = "neg_e" }, .assign, .{ .flt = "-2.72" }, .newline,
+        .let, .{ .ident = "hello" }, .assign, .{ .str = "world" }, .newline,
 
-// test "single binary operator" {
-//     const input = [_]Token{
-//         .let,
-//         .{ .ident = "five" },
-//         .assign,
-//         .{ .int = "5" },
-//         .{ .binary_operator = .add },
-//         .{ .int = "7" },
-//         .newline, 
-//
-//         .eof,
-//     };
-//     const expected = [_]ASTNode {
-//         ASTNode {
-//             .definition {
-//                 .variable {
-//                     .identifier = "five",
-//                     .mutable = false,
-//                     .expression = Expression {
-//                         .binary = .{
-//                             .lhs = Expression {
-//                                 .literal = .{
-//                                     .int = 5
-//                                 }
-//                             },
-//                             .rhs = Expression {
-//                                 .literal = .{
-//                                     .int = 7
-//                                 }
-//                             },
-//                             .operator = .{ .binary_operator = .add },
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     };
-//
-//     const ast = parse_tokens(std.testing.allocator, input);
-//     defer std.testing.allocator.free(ast);
-//
-//     for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
-// }
+        .eof,
+    };
 
-// test "multiple binary operator same precendence" {
-//     const input = [_]Token{
-//         .let,
-//         .{ .ident = "five" },
-//         .assign,
-//         .{ .int = "5" },
-//         .{ .binary_operator = .add },
-//         .{ .int = "7" },
-//         .{ .binary_operator = .add },
-//         .{ .int = "3" },
-//         .{ .binary_operator = .add },
-//         .{ .int = "9" },
-//         .{ .binary_operator = .add },
-//         .{ .int = "1" },
-//         .newline, 
-//
-//         .eof,
-//     };
-//     const expected = [_]ASTNode {
-//         ASTNode {
-//             .definition {
-//                 .variable {
-//                     .identifier = "five",
-//                     .mutable = false,
-//                     .expression = .{
-//                         .binary = .{
-//                             .lhs = .{
-//                                 .binary = .{
-//                                     .lhs = .{
-//                                         .binary = .{
-//                                             .lhs = .{
-//                                                 .binary = .{
-//                                                     .lhs = .{ .literal = .{ .int = 5 } },
-//                                                     .rhs = .{ .literal = .{ .int = 7 } },
-//                                                     .operator = .{ .binary_operator = .add },
-//                                                 }
-//                                             },
-//                                             .rhs = .{ .literal = .{ .int = 3 } },
-//                                             .operator = .{ .binary_operator = .add },
-//                                         }
-//                                     },
-//                                     .rhs = .{ .literal = .{ .int = 9 } },
-//                                     .operator = .{ .binary_operator = .add },
-//                                 }
-//                             },
-//                             .rhs = .{ .literal = .{ .int = 1 } },
-//                             .operator = .{ .binary_operator = .add },
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     };
-//
-//     const ast = parse_tokens(std.testing.allocator, input);
-//     defer std.testing.allocator.free(ast);
-//
-//     for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
-// }
+    const expected = [_]ASTNode {
+        ASTNode {
+            .definition = .{
+                .variable = .{
+                    .identifier = "five",
+                    .mutable = false,
+                    .expression = .{ .literal = .{ .int = 5 } }
+                }
+            }
+        },
+        ASTNode {
+            .definition = .{
+                .variable = .{
+                    .identifier = "neg_ten",
+                    .mutable = false,
+                    .expression = .{ .literal = .{ .int = -10 } }
+                }
+            }
+        },
+        ASTNode {
+            .definition = .{
+                .variable = .{
+                    .identifier = "pi",
+                    .mutable = true,
+                    .expression = .{ .literal = .{ .flt = "3.14" } }
+                }
+            }
+        },
+        ASTNode {
+            .definition = .{
+                .variable = .{
+                    .identifier = "neg_e",
+                    .mutable = true,
+                    .expression = .{ .literal = .{ .flt = "-2.72" } }
+                }
+            }
+        },
+        ASTNode {
+            .definition = .{
+                .variable = .{
+                    .identifier = "hello",
+                    .mutable = false,
+                    .expression = .{ .literal = .{ .str = "world" } }
+                }
+            }
+        },
+    };
 
-// test "multiple binary operator different precendence" {
-//     // let five = 5 + 7 * 7 - 3 / 9 + 1
-//     //            5 + (7 * 7) - (3 / 9) + 1
-//     //            ((5 + (7 * 7)) - (3 / 9)) + 1
-//     //
-//     // tree rep:
-//     //
-//     //            +
-//     //           / \
-//     //          -   1
-//     //         / \
-//     //        /   \
-//     //       +      %
-//     //      / \    / \
-//     //     5   *  3   9
-//     //        / \
-//     //       7   7
-//     const input = [_]Token{
-//         .let,
-//         .{ .ident = "five" },
-//         .assign,
-//         .{ .int = "5" },
-//         .{ .binary_operator = .add },
-//         .{ .int = "7" },
-//         .{ .binary_operator = .multiply },
-//         .{ .int = "7" },
-//         .{ .binary_operator = .subtract },
-//         .{ .int = "3" },
-//         .{ .binary_operator = .divide },
-//         .{ .int = "9" },
-//         .{ .binary_operator = .add },
-//         .{ .int = "1" },
-//         .newline, 
-//
-//         .eof,
-//     };
-//     const expected = [_]ASTNode {
-//         ASTNode{
-//             .definition {
-//                 .variable {
-//                     .identifier = "five",
-//                     .mutable = false,
-//                     .expression = .{
-//                         .binary = .{
-//                             .lhs = .{
-//                                 .binary = .{
-//                                     .lhs = .{
-//                                         .binary = .{
-//                                             .lhs = .{ .literal = .{ .int = "5" } },
-//                                             .operator = .{ .add },
-//                                             .rhs = .{
-//                                                 .binary = .{
-//                                                     .lhs = .{ .literal = .{ .int = "7" } },
-//                                                     .operator = .{ .multiply },
-//                                                     .rhs = .{ .literal = .{ .int = "7" } },
-//                                                 }
-//                                         },
-//                                         }
-//                                     },
-//                                     .operator = .{ .subtract },
-//                                     .rhs = .{
-//                                         .binary = .{
-//                                             .lhs = .{ .literal = .{ .int = "3" } },
-//                                             .operator = .{ .divide },
-//                                             .rhs = .{ .literal = .{ .int = "9" } }
-//                                         }
-//                                 },
-//                                 }
-//                             },
-//                             .operator = .{ .add },
-//                             .rhs = .{ .literal = .{ .int = "1" }},
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     };
-//
-//     const ast = parse_tokens(std.testing.allocator, input);
-//     defer std.testing.allocator.free(ast);
-//
-//     for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
-// }
-//
+    const ast = parse_tokens(std.testing.allocator, &input);
+
+    for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
+
+    std.testing.allocator.free(ast);
+}
+
+test "single binary operator" {
+    const input = [_]Token{
+        .let,
+        .{ .ident = "five" },
+        .assign,
+        .{ .int = "5" },
+        .{ .binary_operator = .add },
+        .{ .int = "7" },
+        .newline, 
+
+        .eof,
+    };
+    const expected = [_]ASTNode {
+        ASTNode {
+            .definition {
+                .variable {
+                    .identifier = "five",
+                    .mutable = false,
+                    .expression = Expression {
+                        .binary = .{
+                            .lhs = Expression {
+                                .literal = .{
+                                    .int = 5
+                                }
+                            },
+                            .rhs = Expression {
+                                .literal = .{
+                                    .int = 7
+                                }
+                            },
+                            .operator = .{ .binary_operator = .add },
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    const ast = parse_tokens(std.testing.allocator, input);
+    defer std.testing.allocator.free(ast);
+
+    for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
+}
+
+test "multiple binary operator same precendence" {
+    const input = [_]Token{
+        .let,
+        .{ .ident = "five" },
+        .assign,
+        .{ .int = "5" },
+        .{ .binary_operator = .add },
+        .{ .int = "7" },
+        .{ .binary_operator = .add },
+        .{ .int = "3" },
+        .{ .binary_operator = .add },
+        .{ .int = "9" },
+        .{ .binary_operator = .add },
+        .{ .int = "1" },
+        .newline, 
+
+        .eof,
+    };
+    const expected = [_]ASTNode {
+        ASTNode {
+            .definition {
+                .variable {
+                    .identifier = "five",
+                    .mutable = false,
+                    .expression = .{
+                        .binary = .{
+                            .lhs = .{
+                                .binary = .{
+                                    .lhs = .{
+                                        .binary = .{
+                                            .lhs = .{
+                                                .binary = .{
+                                                    .lhs = .{ .literal = .{ .int = 5 } },
+                                                    .rhs = .{ .literal = .{ .int = 7 } },
+                                                    .operator = .{ .binary_operator = .add },
+                                                }
+                                            },
+                                            .rhs = .{ .literal = .{ .int = 3 } },
+                                            .operator = .{ .binary_operator = .add },
+                                        }
+                                    },
+                                    .rhs = .{ .literal = .{ .int = 9 } },
+                                    .operator = .{ .binary_operator = .add },
+                                }
+                            },
+                            .rhs = .{ .literal = .{ .int = 1 } },
+                            .operator = .{ .binary_operator = .add },
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    const ast = parse_tokens(std.testing.allocator, input);
+    defer std.testing.allocator.free(ast);
+
+    for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
+}
+
+test "multiple binary operator different precendence" {
+    // let five = 5 + 7 * 7 - 3 / 9 + 1
+    //            5 + (7 * 7) - (3 / 9) + 1
+    //            ((5 + (7 * 7)) - (3 / 9)) + 1
+    //
+    // tree rep:
+    //
+    //            +
+    //           / \
+    //          -   1
+    //         / \
+    //        /   \
+    //       +      %
+    //      / \    / \
+    //     5   *  3   9
+    //        / \
+    //       7   7
+    const input = [_]Token{
+        .let,
+        .{ .ident = "five" },
+        .assign,
+        .{ .int = "5" },
+        .{ .binary_operator = .add },
+        .{ .int = "7" },
+        .{ .binary_operator = .multiply },
+        .{ .int = "7" },
+        .{ .binary_operator = .subtract },
+        .{ .int = "3" },
+        .{ .binary_operator = .divide },
+        .{ .int = "9" },
+        .{ .binary_operator = .add },
+        .{ .int = "1" },
+        .newline, 
+
+        .eof,
+    };
+    const expected = [_]ASTNode {
+        ASTNode{
+            .definition {
+                .variable {
+                    .identifier = "five",
+                    .mutable = false,
+                    .expression = .{
+                        .binary = .{
+                            .lhs = .{
+                                .binary = .{
+                                    .lhs = .{
+                                        .binary = .{
+                                            .lhs = .{ .literal = .{ .int = "5" } },
+                                            .operator = .{ .add },
+                                            .rhs = .{
+                                                .binary = .{
+                                                    .lhs = .{ .literal = .{ .int = "7" } },
+                                                    .operator = .{ .multiply },
+                                                    .rhs = .{ .literal = .{ .int = "7" } },
+                                                }
+                                        },
+                                        }
+                                    },
+                                    .operator = .{ .subtract },
+                                    .rhs = .{
+                                        .binary = .{
+                                            .lhs = .{ .literal = .{ .int = "3" } },
+                                            .operator = .{ .divide },
+                                            .rhs = .{ .literal = .{ .int = "9" } }
+                                        }
+                                },
+                                }
+                            },
+                            .operator = .{ .add },
+                            .rhs = .{ .literal = .{ .int = "1" }},
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    const ast = parse_tokens(std.testing.allocator, input);
+    defer std.testing.allocator.free(ast);
+
+    for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
+}
+
+
