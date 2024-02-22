@@ -6,7 +6,10 @@ const Definition = ast_mod.Definition;
 const Expression = ast_mod.Expression;
 const Literal = ast_mod.Literal;
 
+const BinaryOperator = @import("lexer.zig").BinaryOperator;
+
 pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u8 {
+    std.debug.print("\n{any}\n", .{input});
     var output = std.ArrayList(u8).init(allocator);
     defer output.deinit();
 
@@ -18,7 +21,7 @@ pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u
                 try output.appendSlice(rv);
             },
             .expression => |exp| {
-                const rv = try gen_expression(allocator, exp);
+                const rv = try gen_expression(allocator, &exp);
                 defer allocator.free(rv);
                 try output.appendSlice(rv);
             },
@@ -44,7 +47,7 @@ fn gen_definition(allocator: std.mem.Allocator, input: Definition) ![]const u8 {
             try output.appendSlice(variable.identifier);
             try output.appendSlice(" = ");
 
-            const rv = try gen_expression(allocator, variable.expression);
+            const rv = try gen_expression(allocator, &(variable.expression));
             defer allocator.free(rv);
             try output.appendSlice(rv);
         },
@@ -53,21 +56,40 @@ fn gen_definition(allocator: std.mem.Allocator, input: Definition) ![]const u8 {
     return output.toOwnedSlice();
 }
 
-fn gen_expression(allocator: std.mem.Allocator, input: Expression) ![]const u8 {
+fn gen_expression(allocator: std.mem.Allocator, input: *const Expression) ![]const u8 {
     var output = std.ArrayList(u8).init(allocator);
     defer output.deinit();
 
-    switch (input) {
+    switch (input.*) {
+        .identifier => unreachable,
         .literal => |lit| {
             const rv = try gen_literal(allocator, lit);
             defer allocator.free(rv);
+
             try output.appendSlice(rv);
         },
-        .binary => unreachable,
-        .identifier => unreachable,
+        .binary => |expr| {
+            const lhs = try gen_expression(allocator, expr.lhs);
+            const rhs = try gen_expression(allocator, expr.rhs);
+            defer allocator.free(lhs);
+            defer allocator.free(rhs);
+
+            try output.appendSlice(lhs);
+            try output.appendSlice(gen_operator(expr.operator));
+            try output.appendSlice(lhs);
+        },
     }
 
     return output.toOwnedSlice();
+}
+
+fn gen_operator(op: BinaryOperator) []const u8 {
+    return switch (op) {
+        .subtract => " - ",
+        .add => " + ",
+        .multiply => " * ",
+        .divide => " / ",
+    };
 }
 
 fn gen_literal(allocator: std.mem.Allocator, input: Literal) ![]const u8 {
