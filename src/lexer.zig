@@ -1,63 +1,8 @@
 const std = @import("std");
 
-pub const Token = union(enum) {
-    ident: []const u8,
-    int: []const u8,
-    flt: []const u8,
-    str: []const u8,
-    boolean: bool,
-
-    binary_operator: BinaryOperator,
-    unary_prefix_operator: UnaryPrefixOperator,
-
-    let,
-    mut,
-    dash,
-    assign,
-    newline,
-    cantTouchThis,
-    eof,
-    illegal,
-
-    const Self = @This();
-
-    fn keyword(ident: []const u8) ?Token {
-        const map = std.ComptimeStringMap(Token, .{
-            .{ "let", .let },
-            .{ "mut", .mut },
-            .{ "ctt", .cantTouchThis },
-            .{ "True", .{ .boolean = true } },
-            .{ "False", .{ .boolean = false } },
-        });
-        return map.get(ident);
-    }
-
-    pub fn get_binary_operator(self: *const Self) ?BinaryOperator {
-        return switch (self.*) {
-            .binary_operator => |op| op,
-            else => null,
-        };
-    }
-};
-
-pub const UnaryPrefixOperator = union(enum) {
-    not,
-    negative,
-};
-
-pub const BinaryOperator = enum {
-    add,
-    subtract,
-    multiply,
-    divide,
-
-    pub fn precedence(self: *BinaryOperator) u8 {
-        return switch (self.*) {
-            .multiply, .divide => 2,
-            .add, .subtract => 1,
-        };
-    }
-};
+const data_structs = @import("data_structs.zig");
+const Token = data_structs.Token;
+const BinaryOperator = data_structs.BinaryOperator;
 
 fn isLetter(ch: u8) bool {
     return std.ascii.isAlphabetic(ch) or ch == '_';

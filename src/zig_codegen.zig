@@ -1,12 +1,11 @@
 const std = @import("std");
 
-const ast_mod = @import("./ast.zig");
-const ASTNode = ast_mod.ASTNode;
-const Definition = ast_mod.Definition;
-const Expression = ast_mod.Expression;
-const Literal = ast_mod.Literal;
-
-const BinaryOperator = @import("lexer.zig").BinaryOperator;
+const data_structs = @import("data_structs.zig");
+const ASTNode = data_structs.ASTNode;
+const Definition = data_structs.Definition;
+const Expression = data_structs.Expression;
+const Literal = data_structs.Literal;
+const BinaryOperator = data_structs.BinaryOperator;
 
 pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u8 {
     std.debug.print("\n{any}\n", .{input});

@@ -1,12 +1,11 @@
 const std = @import("std");
 
-const ast_module = @import("ast.zig");
-const ASTNode = ast_module.ASTNode;
-const Expression = ast_module.Expression;
-const Literal = ast_module.Literal;
-
-const Token = @import("lexer.zig").Token;
-const BinaryOperator = @import("lexer.zig").BinaryOperator;
+const data_structs = @import("data_structs.zig");
+const ASTNode = data_structs.ASTNode;
+const Expression = data_structs.Expression;
+const Literal = data_structs.Literal;
+const Token = data_structs.Token;
+const BinaryOperator = data_structs.BinaryOperator;
 
 const Parser = struct {
     position: usize = 0,
@@ -87,7 +86,7 @@ const Parser = struct {
     fn parse_expression(self: *Self, precedence: u8) ParseError!*const Expression {
         var leaf = try self.parse_expr_leaf();
         while (true) {
-            var bin_exp = try self.parse_binary_expression(leaf, precedence);
+            const bin_exp = try self.parse_binary_expression(leaf, precedence);
             if (std.meta.eql(leaf, bin_exp)) break;
             leaf = bin_exp;
         }
@@ -214,7 +213,7 @@ test "Parse into AST" {
     const ast = parse_tokens(std.testing.allocator, &input);
     defer std.testing.allocator.free(ast);
 
-    for (ast, 0..) |node, i| try expectEqualDeep(node, expected[i]);
+    for (ast, 0..) |node, i| try node.assert_eq(&expected[i]);
 }
 
 test "single binary operator" {
@@ -229,32 +228,36 @@ test "single binary operator" {
 
         .eof,
     };
-    const expected =
-        ASTNode {
-            .definition {
-                .variable {
-                    .identifier = "five",
-                    .mutable = false,
-                    .expression = &Expression {
-                        .binary = .{
-                            .lhs = &Expression {
-                                .literal = .{
-                                    .int = 5
-                                }
-                            },
-                            .rhs = &Expression {
-                                .literal = .{
-                                    .int = 7
-                                }
-                            },
-                            .operator = .{ .binary_operator = .add },
-                        }
-                    }
-                }
-            }
-        };
 
-    const ast = parse_tokens(std.testing.allocator, input);
+    const lit_five: Expression = .{
+        .literal = .{
+            .int = 5
+        }
+    };
+    const lit_sev: Expression = .{
+        .literal = .{
+            .int = 7
+        }
+    };
+    const bin_expr: Expression = .{
+        .binary = .{
+            .lhs = &lit_five,
+            .operator = .add,
+            .rhs = &lit_sev
+        }
+    };
+
+    const expected: ASTNode = .{
+        .definition {
+            .variable {
+                .identifier = "five",
+                .mutable = false,
+                .expression = &bin_expr,
+            }
+        }
+    };
+
+    const ast = parse_tokens(std.testing.allocator, &input);
     defer std.testing.allocator.free(ast);
 
     try expectEqualDeep(ast[0], expected);
