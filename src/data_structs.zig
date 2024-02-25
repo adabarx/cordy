@@ -175,7 +175,7 @@ pub const BinaryOperator = union(enum) {
     multiply,
     divide,
 
-    pub fn precedence(self: *BinaryOperator) u8 {
+    pub fn precedence(self: *const BinaryOperator) u8 {
         return switch (self.*) {
             .multiply, .divide => 2,
             .add, .subtract => 1,

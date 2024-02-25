@@ -41,6 +41,7 @@ const Parser = struct {
     }
 
     pub fn parse_statement(self: *Self) ParseError!ASTNode {
+        std.debug.print("\nstatement\n", .{});
         while (self.read_token() == .newline) _ = self.next_token();
 
         return switch (self.read_token()) {
@@ -54,6 +55,7 @@ const Parser = struct {
     }
 
     fn parse_let_statement(self: *Self) ParseError!ASTNode {
+        std.debug.print("\nlet\n", .{});
         var mutt = false;
         if (self.next_token() == .mut) {
             mutt = true;
@@ -77,44 +79,45 @@ const Parser = struct {
     }
 
     fn parse_expr_leaf(self: *Self) ParseError!*const Expression {
+        std.debug.print("\nleaf\n", .{});
         return switch (self.read_token()) {
             .int, .flt, .str, .boolean => &Expression{ .literal = try self.parse_literal() },
+            .ident => |id| &Expression{ .identifier = id },
             else => ParseError.IllegalExpression,
         };
     }
 
     fn parse_expression(self: *Self, precedence: u8) ParseError!*const Expression {
+        std.debug.print("\nexpression\n", .{});
         var leaf = try self.parse_expr_leaf();
-        while (true) {
-            const bin_exp = try self.parse_binary_expression(leaf, precedence);
-            if (std.meta.eql(leaf, bin_exp)) break;
-            leaf = bin_exp;
+        // check for binary op
+        while (self.next_token().get_binary_operator()) |curr_op| {
+            _ = self.next_token();
+            // if precedence decreases/equal: left to right (non recursive)
+            if (curr_op.precedence() <= precedence) {
+                leaf = &.{
+                    .binary = .{
+                        .lhs = leaf,
+                        .operator = curr_op,
+                        .rhs = try self.parse_expr_leaf(),
+                    }
+                };
+            // else precedence increases: right to left (recursive)
+            } else {
+                leaf = &.{
+                    .binary = .{
+                        .lhs = leaf,
+                        .operator = curr_op,
+                        .rhs = try self.parse_expression(curr_op.precedence()),
+                    }
+                };
+            }
         }
         return leaf;
     }
 
-    fn parse_binary_expression(self: *Self, lhs: *const Expression, precedence: u8) ParseError!*const Expression {
-        // if precedence decreases: left to right (non recursive)
-        // if precedence increases: right to left (recursive)
-        var curr_operator: BinaryOperator =
-            if (self.next_token().get_binary_operator()) |op| op
-            else return lhs;
-
-        _ = self.next_token();
-        if (curr_operator.precedence() <= precedence) {
-            return &Expression {
-                .binary = .{
-                    .lhs = lhs,
-                    .operator = curr_operator,
-                    .rhs = try self.parse_expr_leaf(),
-                }
-            };
-        } else {
-            return try self.parse_expression(curr_operator.precedence());
-        }
-    }
-
     fn parse_literal(self: *Self) ParseError!Literal {
+        std.debug.print("\nliteral\n", .{});
         defer _ = self.next_token();
         return switch (self.read_token()) {
             .int => |val| Literal{ .int = std.fmt.parseInt(isize, val, 10) catch return ParseError.CantParseInt },
