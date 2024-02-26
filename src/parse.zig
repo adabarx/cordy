@@ -90,17 +90,17 @@ const Parser = struct {
     fn parse_expression(self: *Self, precedence: u8) ParseError!*const Expression {
         std.debug.print("expression\n", .{});
         var called_prec = precedence;
-        var leaf = try self.parse_leaf();
-        std.debug.print("\n", .{});
-        leaf.prittyprint(0);
+        var left = try self.parse_leaf();
+        left.prittyprint(0);
         // check for binary op
         while (self.next_token().get_binary_operator()) |curr_op| {
             std.debug.print("binary\n", .{});
             _ = self.next_token();
             if (curr_op.precedence() <= called_prec) {
-                // if precedence is equal or decreases: left to right and lo4p
+                // if precedence is equal or decreases: left to right and loop
                 std.debug.print("{} <= {}\n", .{curr_op.precedence(), called_prec});
-                leaf = .{
+                const leaf = left;
+                left = .{
                     .binary = .{
                         .lhs = &leaf,
                         .operator = curr_op,
@@ -112,7 +112,8 @@ const Parser = struct {
             } else {
                 // else precedence increases: right to left and recurse
                 std.debug.print("{} > {}\n", .{curr_op.precedence(), called_prec});
-                leaf = .{
+                const leaf = left;
+                left = .{
                     .binary = .{
                         .lhs = &leaf,
                         .operator = curr_op,
@@ -122,8 +123,8 @@ const Parser = struct {
                 leaf.prittyprint(0);
             }
         }
-        leaf.prittyprint(0);
-        return &leaf;
+        left.prittyprint(0);
+        return &left;
     }
 
     fn parse_literal(self: *Self) ParseError!Literal {
