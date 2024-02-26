@@ -100,28 +100,29 @@ const Parser = struct {
                 // if precedence is equal or decreases: left to right and loop
                 std.debug.print("{} <= {}\n", .{curr_op.precedence(), called_prec});
                 const leaf = left;
+                const right = try self.parse_leaf();
                 left = .{
                     .binary = .{
                         .lhs = &leaf,
                         .operator = curr_op,
-                        .rhs = &(try self.parse_leaf()),
+                        .rhs = &right,
                     }
                 };
-                leaf.prittyprint(0);
                 called_prec = curr_op.precedence();
             } else {
                 // else precedence increases: right to left and recurse
                 std.debug.print("{} > {}\n", .{curr_op.precedence(), called_prec});
                 const leaf = left;
+                const right = try self.parse_expression(curr_op.precedence());
                 left = .{
                     .binary = .{
                         .lhs = &leaf,
                         .operator = curr_op,
-                        .rhs = try self.parse_expression(curr_op.precedence()),
+                        .rhs = right,
                     }
                 };
-                leaf.prittyprint(0);
             }
+            left.prittyprint(0);
         }
         left.prittyprint(0);
         return &left;
