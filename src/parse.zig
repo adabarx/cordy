@@ -44,7 +44,6 @@ const Parser = struct {
     }
 
     pub fn parse_statement(self: *Self, allocator: Allocator) ParseError!ASTNode {
-        std.debug.print("\nstatement\n", .{});
         while (self.read_token() == .newline) _ = self.next_token();
 
         return switch (self.read_token()) {
@@ -64,7 +63,6 @@ const Parser = struct {
     }
 
     fn parse_let_statement(self: *Self, allocator: Allocator) ParseError!ASTNode {
-        std.debug.print("let\n", .{});
         var mutt = false;
         if (self.next_token() == .mut) {
             mutt = true;
@@ -95,7 +93,6 @@ const Parser = struct {
     }
 
     fn parse_leaf(self: *Self, allocator: Allocator) ParseError!*Expression {
-        std.debug.print("leaf\n", .{});
         var leaf = allocator.create(Expression)
             catch return ParseError.OutOfMemory;
         leaf.* = try switch (self.read_token()) {
@@ -107,20 +104,14 @@ const Parser = struct {
     }
 
     fn parse_expression(self: *Self, allocator: Allocator, precedence: u8) ParseError!*Expression {
-        std.debug.print("expression\n", .{});
         var called_prec = precedence;
         var leaf = self.parse_leaf(allocator)
             catch return ParseError.OutOfMemory;
-        leaf.prittyprint(0);
-        var is_binary = false;
         // check for binary op
         while (self.next_token().get_binary_operator()) |curr_op| {
-            is_binary = true;
-            std.debug.print("binary\n", .{});
             _ = self.next_token();
             if (curr_op.precedence() <= called_prec) {
                 // if precedence is equal or decreases: left to right and loop
-                std.debug.print("{} <= {}\n", .{curr_op.precedence(), called_prec});
                 var left = allocator.create(Expression)
                     catch return ParseError.OutOfMemory;
                 std.mem.swap(Expression, left, leaf);
@@ -135,7 +126,6 @@ const Parser = struct {
                 called_prec = curr_op.precedence();
             } else {
                 // else precedence increases: right to left and recurse
-                std.debug.print("{} > {}\n", .{curr_op.precedence(), called_prec});
                 var left = allocator.create(Expression)
                     catch return ParseError.OutOfMemory;
                 std.mem.swap(Expression, left, leaf);
@@ -147,22 +137,18 @@ const Parser = struct {
                     }
                 };
             }
-            leaf.prittyprint(0);
         }
         return leaf;
     }
 
     fn parse_literal(self: *Self) ParseError!Literal {
-        std.debug.print("literal\n", .{});
         return switch (self.read_token()) {
             .int => |val| {
                 const int = std.fmt.parseInt(isize, val, 10)
                     catch return ParseError.CantParseInt;
-                std.debug.print("int ({})\n", .{int});
                 return Literal{ .int = int };
             },
             .flt => |val| {
-                std.debug.print("flt\n", .{});
                 // see if it parses into a float and store as str
                 // this stops a three digit literal from exploding
                 // into a long string of digits at codegen
@@ -171,11 +157,9 @@ const Parser = struct {
                 return Literal{ .flt = val };
             },
             .str => |val| {
-                std.debug.print("str\n", .{});
                 return Literal{ .str = val };
             },
             .boolean => |val| {
-                std.debug.print("bool\n", .{});
                 return Literal{ .boolean = val };
             },
             else => ParseError.IllegalLiteral,
@@ -195,7 +179,6 @@ pub fn parse_tokens(allocator: std.mem.Allocator, tokens: []const Token) []const
             break;
         };
         if (astnode.node == .eof) break;
-        astnode.prittyprint();
         ast.append(astnode) catch unreachable;
     }
 
@@ -283,7 +266,7 @@ test "Parse into AST" {
         std.testing.allocator.free(ast);
     }
 
-    // for (ast) |node| node.prittyprint();
+    for (ast) |node| node.prittyprint();
     for (ast, 0..) |astnode, i| try astnode.assert_eq(&expected[i]);
 }
 
