@@ -41,21 +41,19 @@ const Parser = struct {
     }
 
     pub fn parse_statement(self: *Self) ParseError!ASTNode {
+        std.debug.print("\nstatement\n", .{});
         while (self.read_token() == .newline) _ = self.next_token();
 
         return switch (self.read_token()) {
-            .let => assign: {
-                break :assign try self.parse_let_statement();
-            },
-            .int, .flt, .str, .boolean => lit: {
-                break :lit ASTNode{ .expression = (try self.parse_expression(0)).* };
-            },
-            .eof => return ASTNode.eof,
+            .let => self.parse_let_statement(),
+            .int, .flt, .str, .boolean => ASTNode{ .expression = (try self.parse_expression(0)).* },
+            .eof => ASTNode.eof,
             else => ParseError.IllegalStatement,
         };
     }
 
     fn parse_let_statement(self: *Self) ParseError!ASTNode {
+        std.debug.print("let\n", .{});
         var mutt = false;
         if (self.next_token() == .mut) {
             mutt = true;
@@ -78,55 +76,66 @@ const Parser = struct {
         };
     }
 
-    fn parse_leaf(self: *Self) ParseError!*const Expression {
+    fn parse_leaf(self: *Self) ParseError!Expression {
+        std.debug.print("leaf\n", .{});
         return switch (self.read_token()) {
             .int, .flt, .str, .boolean => {
-                return &Expression{ .literal = try self.parse_literal() };
+                return Expression{ .literal = try self.parse_literal() };
             },
-            .ident => |id| &Expression{ .identifier = id },
+            .ident => |id| Expression{ .identifier = id },
             else => ParseError.IllegalExpression,
         };
     }
 
     fn parse_expression(self: *Self, precedence: u8) ParseError!*const Expression {
+        std.debug.print("expression\n", .{});
         var called_prec = precedence;
         var leaf = try self.parse_leaf();
+        std.debug.print("\n", .{});
+        leaf.prittyprint(0);
         // check for binary op
         while (self.next_token().get_binary_operator()) |curr_op| {
+            std.debug.print("binary\n", .{});
             _ = self.next_token();
             if (curr_op.precedence() <= called_prec) {
-                // if precedence is equal or decreases: left to right and loop
-                std.debug.print(" {} <= {}", .{curr_op.precedence(), called_prec});
-                leaf = &.{
+                // if precedence is equal or decreases: left to right and lo4p
+                std.debug.print("{} <= {}\n", .{curr_op.precedence(), called_prec});
+                leaf = .{
                     .binary = .{
-                        .lhs = leaf,
+                        .lhs = &leaf,
                         .operator = curr_op,
-                        .rhs = try self.parse_leaf(),
+                        .rhs = &(try self.parse_leaf()),
                     }
                 };
+                leaf.prittyprint(0);
                 called_prec = curr_op.precedence();
             } else {
                 // else precedence increases: right to left and recurse
-                std.debug.print(" {} > {}", .{curr_op.precedence(), called_prec});
-                leaf = &.{
+                std.debug.print("{} > {}\n", .{curr_op.precedence(), called_prec});
+                leaf = .{
                     .binary = .{
-                        .lhs = leaf,
+                        .lhs = &leaf,
                         .operator = curr_op,
                         .rhs = try self.parse_expression(curr_op.precedence()),
                     }
                 };
+                leaf.prittyprint(0);
             }
         }
-        return leaf;
+        leaf.prittyprint(0);
+        return &leaf;
     }
 
     fn parse_literal(self: *Self) ParseError!Literal {
+        std.debug.print("literal\n", .{});
         return switch (self.read_token()) {
             .int => |val| {
+                std.debug.print("int\n", .{});
                 const int = std.fmt.parseInt(isize, val, 10) catch return ParseError.CantParseInt;
                 return Literal{ .int = int };
             },
             .flt => |val| {
+                std.debug.print("flt\n", .{});
                 // see if it parses into a float and store as str
                 // this stops a three digit literal from exploding
                 // into a long string of digits at codegen
@@ -134,9 +143,11 @@ const Parser = struct {
                 return Literal{ .flt = val };
             },
             .str => |val| {
+                std.debug.print("str\n", .{});
                 return Literal{ .str = val };
             },
             .boolean => |val| {
+                std.debug.print("bool\n", .{});
                 return Literal{ .boolean = val };
             },
             else => ParseError.IllegalLiteral,
@@ -156,6 +167,7 @@ pub fn parse_tokens(allocator: std.mem.Allocator, tokens: []const Token) []const
             break;
         };
         if (node == .eof) break;
+        node.prittyprint();
         ast.append(node) catch unreachable;
     }
 
@@ -225,7 +237,7 @@ test "Parse into AST" {
     const ast = parse_tokens(std.testing.allocator, &input);
     defer std.testing.allocator.free(ast);
 
-    for (ast) |node| node.prittyprint();
+    // for (ast) |node| node.prittyprint();
     for (ast, 0..) |node, i| try node.assert_eq(&expected[i]);
 }
 
