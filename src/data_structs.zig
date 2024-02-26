@@ -1,21 +1,20 @@
 const std = @import("std");
+const expectEqualDeep = std.testing.expectEqualDeep;
+const print = std.debug.print;
 
 const AssertError = error {
-    EOFNotEqual,
-    NodeNotEqual,
-    ExpressionNotEqual,
-    DefinitionNotEqual,
-    LiteralNotEqual,
-    IdentNotEqual,
-    VariableIdentNotEqual,
-    VariableMuttNotEqual,
-    VariableExpressionNotEqual,
-    ExpressionLiteralNotEqual,
-    ExpressionIdentNotEqual,
-    ExpressionBinaryNotEqual,
-    BinaryLeftNotEqual,
-    BinaryRightNotEqual,
-    BinaryOperatorNotEqual,
+    Statement__SelfExpression_OtherDefinition,
+    Statement__SelfExpression_OtherEOF,
+    Statement__SelfEOF_OtherDefinition,
+    Statement__SelfEOF_OtherExpression,
+    Statement__SelfDefinition_OtherExpression,
+    Statement__SelfDefinition_OtherEOF,
+    Expression__SelfLiteral_OtherIdent,
+    Expression__SelfLiteral_OtherBinary,
+    Expression__SelfIdent_OtherLiteral,
+    Expression__SelfIdent_OtherBinary,
+    Expression__SelfBinary_OtherLiteral,
+    Expression__SelfBinary_OtherIdent,
 };
 
 pub const ASTNode = union(enum) {
@@ -24,21 +23,32 @@ pub const ASTNode = union(enum) {
     eof: void,
 
     const Self = @This();
+    pub fn prittyprint(self: *const Self) void {
+        print("\n\nStatement:\n", .{});
+
+        switch (self.*) {
+            .definition => |def| def.prittyprint(2),
+            .expression => |exp| exp.prittyprint(2),
+            .eof => print("EOF\n", .{}),
+        }
+    }
+
     pub fn assert_eq(self: *const Self, other: *const ASTNode) !void {
         switch (self.*) {
             .definition => |def_self| switch (other.*) {
-                .definition => |def_other| def_self.assert_eq(&def_other)
-                    catch return AssertError.DefinitionNotEqual,
-                else => return AssertError.DefinitionNotEqual,
+                .definition => |def_other| try def_self.assert_eq(&def_other),
+                .expression => return AssertError.Statement__SelfDefinition_OtherExpression,
+                .eof => return AssertError.Statement__SelfDefinition_OtherEOF,
             },
             .expression => |expr_self| switch (other.*) {
-                .expression => |expr_other| expr_self.assert_eq(&expr_other)
-                    catch return AssertError.ExpressionNotEqual,
-                else => return AssertError.ExpressionNotEqual,
+                .expression => |expr_other| try expr_self.assert_eq(&expr_other),
+                .definition => return AssertError.Statement__SelfExpression_OtherDefinition,
+                .eof => return AssertError.Statement__SelfExpression_OtherEOF,
             },
             .eof => switch (other.*) {
                 .eof => {},
-                else => return AssertError.EOFNotEqual,
+                .definition => return AssertError.Statement__SelfEOF_OtherDefinition,
+                .expression => return AssertError.Statement__SelfEOF_OtherExpression,
             }
         }
     }
@@ -52,18 +62,29 @@ pub const Definition = union(enum) {
     },
     
     const Self = @This();
+    pub fn prittyprint(self: *const Self, spaces: u8) void {
+        p_spaces(spaces);
+        std.debug.print("Definition\n", .{});
+        switch (self.*) {
+            .variable => |vari| {
+                p_spaces(spaces + 2);
+                print("Variable:\n", .{});
+                p_spaces(spaces + 4);
+                print("Ident: {s}\n", .{vari.identifier});
+                p_spaces(spaces + 4);
+                print("Mutable: {s}\n", .{if (vari.mutable) "True" else "False"});
+                vari.expression.prittyprint(spaces + 4);
+            }
+        }
+    }
+
     pub fn assert_eq(self: *const Self, other: *const Definition) !void {
-        const expect = std.testing.expect;
-        const expectEqualStrings = std.testing.expectEqualStrings;
         switch (self.*) {
             .variable => |var_self| switch (other.*) {
                 .variable => |var_other| {
-                    expectEqualStrings(var_self.identifier, var_other.identifier)
-                        catch return AssertError.VariableIdentNotEqual;
-                    expect(var_self.mutable == var_other.mutable)
-                        catch return AssertError.VariableMuttNotEqual;
-                    var_self.expression.assert_eq(&var_other.expression)
-                        catch return AssertError.VariableExpressionNotEqual;
+                    try expectEqualDeep(var_self.identifier, var_other.identifier);
+                    try expectEqualDeep(var_self.mutable, var_other.mutable);
+                    try var_self.expression.assert_eq(&var_other.expression);
                 },
             },
         }
@@ -80,30 +101,57 @@ pub const Expression = union(enum) {
     },
     
     const Self = @This();
+    pub fn prittyprint(self: *const Self, spaces: u8) void {
+        p_spaces(spaces);
+        print("Expression:\n", .{});
+        switch (self.*) {
+            .literal => |lit| lit.prittyprint(spaces + 2), 
+            .identifier => |ident| {
+                defer print("\n", .{});
+                p_spaces(spaces + 2);
+                print("Ident: {s}", .{ident});
+            },
+            .binary => |bin| {
+                defer print("\n", .{});
+                p_spaces(spaces + 2);
+                print("Binary:\n", .{});
+                p_spaces(spaces + 4);
+                print("Operator: {s}\n", .{switch (bin.operator) {
+                    .add => "+",
+                    .subtract => "-",
+                    .multiply => "*",
+                    .divide => "/",
+                }});
+                p_spaces(spaces + 4);
+                print("Left:\n", .{});
+                bin.lhs.prittyprint(spaces + 6);
+                p_spaces(spaces + 4);
+                print("Right:\n", .{});
+                bin.lhs.prittyprint(spaces + 6);
+            }
+        }
+    }
+
     pub fn assert_eq(self: *const Self, other: *const Expression) !void {
-        const expectEqualDeep = std.testing.expectEqualDeep;
-        const expectEqualStrings = std.testing.expectEqualStrings;
         switch (self.*) {
             .literal => |lit_self| switch (other.*) {
-                .literal => |lit_other| lit_self.assert_eq(&lit_other)
-                    catch return AssertError.LiteralNotEqual,
-                else => return AssertError.ExpressionLiteralNotEqual,
+                .literal => |lit_other| try lit_self.assert_eq(&lit_other),
+                .identifier => return AssertError.Expression__SelfLiteral_OtherIdent,
+                .binary => return AssertError.Expression__SelfLiteral_OtherBinary,
             },
             .identifier => |id_self| switch (other.*) {
-                .identifier => |id_other| expectEqualStrings(id_self, id_other)
-                    catch return AssertError.IdentNotEqual,
-                else => return AssertError.ExpressionIdentNotEqual,
+                .identifier => |id_other| try expectEqualDeep(id_self, id_other),
+                .literal => return AssertError.Expression__SelfIdent_OtherLiteral,
+                .binary => return AssertError.Expression__SelfIdent_OtherBinary,
             },
             .binary => |bin_self| switch (other.*) {
                 .binary => |bin_other| {
-                    expectEqualDeep(bin_self.operator, bin_other.operator)
-                        catch return AssertError.BinaryOperatorNotEqual;
-                    bin_self.lhs.assert_eq(bin_other.lhs)
-                        catch return AssertError.BinaryLeftNotEqual;
-                    bin_self.rhs.assert_eq(bin_other.rhs)
-                        catch return AssertError.BinaryRightNotEqual;
+                    try expectEqualDeep(bin_self.operator, bin_other.operator);
+                    try bin_self.lhs.assert_eq(bin_other.lhs);
+                    try bin_self.rhs.assert_eq(bin_other.rhs);
                 },
-                else => return AssertError.ExpressionBinaryNotEqual,
+                .literal => return AssertError.Expression__SelfBinary_OtherLiteral,
+                .identifier => return AssertError.Expression__SelfBinary_OtherIdent,
             },
         }
     }
@@ -116,9 +164,22 @@ pub const Literal = union(enum) {
     boolean: bool,
     
     const Self = @This();
+    pub fn prittyprint(self: *const Self, spaces: u8) void {
+        p_spaces(spaces);
+        print("Literal:\n", .{});
+        p_spaces(spaces + 2);
+        switch (self.*) {
+            .int => |i| print("Int: {}", .{i}),
+            .flt => |f|print("Flt: {s}", .{f}),
+            .str => |s| print("Str: {s}", .{s}),
+            .boolean => |b| print("Bool: {s}", .{if (b) "True" else "False"}),
+        }
+        print("\n", .{});
+    }
+
     pub fn assert_eq(self: *const Self, other: *const Literal) !void {
-        std.testing.expectEqualDeep(self, other)
-            catch return AssertError.LiteralNotEqual;
+        std.debug.print("\nexpected: {any}; found: {any}\n", .{self, other});
+        try expectEqualDeep(self, other);
     }
 };
 
@@ -177,8 +238,14 @@ pub const BinaryOperator = union(enum) {
 
     pub fn precedence(self: *const BinaryOperator) u8 {
         return switch (self.*) {
-            .multiply, .divide => 2,
-            .add, .subtract => 1,
+            .multiply, .divide => 1,
+            .add, .subtract => 0,
         };
     }
 };
+
+fn p_spaces(num: u8) void {
+    for (0..num) |_| {
+        std.debug.print(" ", .{});
+    }
+}
