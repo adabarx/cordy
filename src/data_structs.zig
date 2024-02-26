@@ -17,16 +17,27 @@ const AssertError = error {
     Expression__SelfBinary_OtherIdent,
 };
 
-pub const ASTNode = union(enum) {
-    definition: Definition,
-    expression: Expression,
-    eof: void,
+pub const ASTNode = struct {
+    alloc: std.mem.Allocator,
+    node: union(enum) {
+        definition: Definition,
+        expression: *const Expression,
+        eof: void,
+    },
 
     const Self = @This();
-    pub fn prittyprint(self: *const Self) void {
-        print("\n\nStatement:\n", .{});
+    pub fn deinit(self: *const Self) void {
+        switch (self.node) {
+            .definition => |def| def.deinit(self.alloc),
+            .expression => |exp| exp.deinit(self.alloc),
+            .eof => {},
+        }
+    }
 
-        switch (self.*) {
+    pub fn prittyprint(self: *const Self) void {
+        print("\nStatement:\n", .{});
+
+        switch (self.*.node) {
             .definition => |def| def.prittyprint(2),
             .expression => |exp| exp.prittyprint(2),
             .eof => print("EOF\n", .{}),
@@ -34,18 +45,18 @@ pub const ASTNode = union(enum) {
     }
 
     pub fn assert_eq(self: *const Self, other: *const ASTNode) !void {
-        switch (self.*) {
-            .definition => |def_self| switch (other.*) {
+        switch (self.*.node) {
+            .definition => |def_self| switch (other.*.node) {
                 .definition => |def_other| try def_self.assert_eq(&def_other),
                 .expression => return AssertError.Statement__SelfDefinition_OtherExpression,
                 .eof => return AssertError.Statement__SelfDefinition_OtherEOF,
             },
-            .expression => |expr_self| switch (other.*) {
-                .expression => |expr_other| try expr_self.assert_eq(&expr_other),
+            .expression => |expr_self| switch (other.*.node) {
+                .expression => |expr_other| try expr_self.assert_eq(expr_other),
                 .definition => return AssertError.Statement__SelfExpression_OtherDefinition,
                 .eof => return AssertError.Statement__SelfExpression_OtherEOF,
             },
-            .eof => switch (other.*) {
+            .eof => switch (other.*.node) {
                 .eof => {},
                 .definition => return AssertError.Statement__SelfEOF_OtherDefinition,
                 .expression => return AssertError.Statement__SelfEOF_OtherExpression,
@@ -58,10 +69,19 @@ pub const Definition = union(enum) {
     variable: struct {
         identifier: []const u8,
         mutable: bool = false,
-        expression: Expression,
+        expression: *const Expression,
     },
     
     const Self = @This();
+    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .variable => |v| {
+                v.expression.deinit(allocator);
+                allocator.destroy(v.expression);
+            },
+        }
+    }
+
     pub fn prittyprint(self: *const Self, spaces: u8) void {
         p_spaces(spaces);
         std.debug.print("Definition\n", .{});
@@ -84,7 +104,7 @@ pub const Definition = union(enum) {
                 .variable => |var_other| {
                     try expectEqualDeep(var_self.identifier, var_other.identifier);
                     try expectEqualDeep(var_self.mutable, var_other.mutable);
-                    try var_self.expression.assert_eq(&var_other.expression);
+                    try var_self.expression.assert_eq(var_other.expression);
                 },
             },
         }
@@ -101,6 +121,18 @@ pub const Expression = union(enum) {
     },
     
     const Self = @This();
+    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .binary => |bin| {
+                bin.lhs.deinit(allocator);
+                bin.rhs.deinit(allocator);
+                allocator.destroy(bin.lhs);
+                allocator.destroy(bin.rhs);
+            },
+            else => {},
+        }
+    }
+
     pub fn prittyprint(self: *const Self, spaces: u8) void {
         p_spaces(spaces);
         print("Expression:\n", .{});
@@ -178,7 +210,6 @@ pub const Literal = union(enum) {
     }
 
     pub fn assert_eq(self: *const Self, other: *const Literal) !void {
-        std.debug.print("\nexpected: {any}; found: {any}\n", .{self, other});
         try expectEqualDeep(self, other);
     }
 };

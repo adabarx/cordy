@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const data_structs = @import("data_structs.zig");
 const ASTNode = data_structs.ASTNode;
@@ -20,6 +21,8 @@ const Parser = struct {
 
         CantParseFloat,
         CantParseInt,
+
+        OutOfMemory,
     };
 
     const Self = @This();
@@ -40,19 +43,27 @@ const Parser = struct {
         return self.input[self.position + spaces];
     }
 
-    pub fn parse_statement(self: *Self) ParseError!ASTNode {
+    pub fn parse_statement(self: *Self, allocator: Allocator) ParseError!ASTNode {
         std.debug.print("\nstatement\n", .{});
         while (self.read_token() == .newline) _ = self.next_token();
 
         return switch (self.read_token()) {
-            .let => self.parse_let_statement(),
-            .int, .flt, .str, .boolean => ASTNode{ .expression = (try self.parse_expression(0)).* },
-            .eof => ASTNode.eof,
+            .let => self.parse_let_statement(allocator),
+            .int, .flt, .str, .boolean => .{
+                .alloc = allocator,
+                .node = .{
+                    .expression = try self.parse_expression(allocator, 0)
+                }
+            },
+            .eof => .{
+                .alloc = allocator,
+                .node = .eof,
+            },
             else => ParseError.IllegalStatement,
         };
     }
 
-    fn parse_let_statement(self: *Self) ParseError!ASTNode {
+    fn parse_let_statement(self: *Self, allocator: Allocator) ParseError!ASTNode {
         std.debug.print("let\n", .{});
         var mutt = false;
         if (self.next_token() == .mut) {
@@ -66,74 +77,88 @@ const Parser = struct {
         return switch (self.next_token()) {
             .assign => {
                 _ = self.next_token();
-                return .{ .definition = .{ .variable = .{
-                    .identifier = ident,
-                    .mutable = mutt,
-                    .expression = (try self.parse_expression(0)).*,
-                } } };
+                return .{
+                    .alloc = allocator,
+                    .node = .{ 
+                        .definition = .{
+                            .variable = .{
+                                .identifier = ident,
+                                .mutable = mutt,
+                                .expression = try self.parse_expression(allocator, 0),
+                            }
+                        }
+                    }
+                };
             },
             else => ParseError.IllegalLetAssign,
         };
     }
 
-    fn parse_leaf(self: *Self) ParseError!Expression {
+    fn parse_leaf(self: *Self, allocator: Allocator) ParseError!*Expression {
         std.debug.print("leaf\n", .{});
-        return switch (self.read_token()) {
-            .int, .flt, .str, .boolean => {
-                return Expression{ .literal = try self.parse_literal() };
-            },
+        var leaf = allocator.create(Expression)
+            catch return ParseError.OutOfMemory;
+        leaf.* = try switch (self.read_token()) {
+            .int, .flt, .str, .boolean => Expression{ .literal = try self.parse_literal() },
             .ident => |id| Expression{ .identifier = id },
             else => ParseError.IllegalExpression,
         };
+        return leaf;
     }
 
-    fn parse_expression(self: *Self, precedence: u8) ParseError!*const Expression {
+    fn parse_expression(self: *Self, allocator: Allocator, precedence: u8) ParseError!*Expression {
         std.debug.print("expression\n", .{});
         var called_prec = precedence;
-        var left = try self.parse_leaf();
-        left.prittyprint(0);
+        var leaf = self.parse_leaf(allocator)
+            catch return ParseError.OutOfMemory;
+        leaf.prittyprint(0);
+        var is_binary = false;
         // check for binary op
         while (self.next_token().get_binary_operator()) |curr_op| {
+            is_binary = true;
             std.debug.print("binary\n", .{});
             _ = self.next_token();
             if (curr_op.precedence() <= called_prec) {
                 // if precedence is equal or decreases: left to right and loop
                 std.debug.print("{} <= {}\n", .{curr_op.precedence(), called_prec});
-                const leaf = left;
-                const right = try self.parse_leaf();
-                left = .{
+                var left = allocator.create(Expression)
+                    catch return ParseError.OutOfMemory;
+                left.* = leaf.*;
+                leaf.* = .{
                     .binary = .{
-                        .lhs = &leaf,
+                        .lhs = left,
                         .operator = curr_op,
-                        .rhs = &right,
+                        .rhs = try self.parse_leaf(allocator),
                     }
                 };
                 called_prec = curr_op.precedence();
             } else {
                 // else precedence increases: right to left and recurse
                 std.debug.print("{} > {}\n", .{curr_op.precedence(), called_prec});
-                const leaf = left;
-                const right = try self.parse_expression(curr_op.precedence());
-                left = .{
+                var left = allocator.create(Expression)
+                    catch return ParseError.OutOfMemory;
+                left.* = leaf.*;
+                leaf.* = .{
                     .binary = .{
-                        .lhs = &leaf,
+                        .lhs = left,
                         .operator = curr_op,
-                        .rhs = right,
+                        .rhs = try self.parse_expression(allocator, curr_op.precedence()),
                     }
                 };
             }
-            left.prittyprint(0);
+            leaf.prittyprint(0);
         }
-        left.prittyprint(0);
-        return &left;
+        if (is_binary) leaf.prittyprint(0);
+        return leaf;
     }
 
     fn parse_literal(self: *Self) ParseError!Literal {
         std.debug.print("literal\n", .{});
         return switch (self.read_token()) {
             .int => |val| {
-                std.debug.print("int\n", .{});
-                const int = std.fmt.parseInt(isize, val, 10) catch return ParseError.CantParseInt;
+                const int = std.fmt.parseInt(isize, val, 10)
+                    catch return ParseError.CantParseInt;
+                std.debug.print("int ({})\n", .{int});
                 return Literal{ .int = int };
             },
             .flt => |val| {
@@ -141,7 +166,8 @@ const Parser = struct {
                 // see if it parses into a float and store as str
                 // this stops a three digit literal from exploding
                 // into a long string of digits at codegen
-                _ = std.fmt.parseFloat(f32, val) catch return ParseError.CantParseFloat;
+                _ = std.fmt.parseFloat(f32, val)
+                    catch return ParseError.CantParseFloat;
                 return Literal{ .flt = val };
             },
             .str => |val| {
@@ -164,13 +190,13 @@ pub fn parse_tokens(allocator: std.mem.Allocator, tokens: []const Token) []const
     defer ast.deinit();
 
     while (true) {
-        const node = parser.parse_statement() catch |err| {
+        const astnode = parser.parse_statement(allocator) catch |err| {
             std.log.err("Error: {}", .{err});
             break;
         };
-        if (node == .eof) break;
-        node.prittyprint();
-        ast.append(node) catch unreachable;
+        if (astnode.node == .eof) break;
+        astnode.prittyprint();
+        ast.append(astnode) catch unreachable;
     }
 
     return ast.toOwnedSlice() catch unreachable;
@@ -190,57 +216,75 @@ test "Parse into AST" {
 
     const expected = [_]ASTNode {
         ASTNode {
-            .definition = .{
-                .variable = .{
-                    .identifier = "five",
-                    .mutable = false,
-                    .expression = .{ .literal = .{ .int = 5 } }
+            .alloc = std.testing.allocator,
+            .node = .{
+                .definition = .{
+                    .variable = .{
+                        .identifier = "five",
+                        .mutable = false,
+                        .expression = &.{ .literal = .{ .int = 5 } }
+                    }
                 }
             }
         },
         ASTNode {
-            .definition = .{
-                .variable = .{
-                    .identifier = "neg_ten",
-                    .mutable = false,
-                    .expression = .{ .literal = .{ .int = -10 } }
+            .alloc = std.testing.allocator,
+            .node = .{
+                .definition = .{
+                    .variable = .{
+                        .identifier = "neg_ten",
+                        .mutable = false,
+                        .expression = &.{ .literal = .{ .int = -10 } }
+                    }
                 }
             }
         },
         ASTNode {
-            .definition = .{
-                .variable = .{
-                    .identifier = "pi",
-                    .mutable = true,
-                    .expression = .{ .literal = .{ .flt = "3.14" } }
+            .alloc = std.testing.allocator,
+            .node = .{
+                .definition = .{
+                    .variable = .{
+                        .identifier = "pi",
+                        .mutable = true,
+                        .expression = &.{ .literal = .{ .flt = "3.14" } }
+                    }
                 }
             }
         },
         ASTNode {
-            .definition = .{
-                .variable = .{
-                    .identifier = "neg_e",
-                    .mutable = true,
-                    .expression = .{ .literal = .{ .flt = "-2.72" } }
+            .alloc = std.testing.allocator,
+            .node = .{
+                .definition = .{
+                    .variable = .{
+                        .identifier = "neg_e",
+                        .mutable = true,
+                        .expression = &.{ .literal = .{ .flt = "-2.72" } }
+                    }
                 }
             }
         },
         ASTNode {
-            .definition = .{
-                .variable = .{
-                    .identifier = "hello",
-                    .mutable = false,
-                    .expression = .{ .literal = .{ .str = "world" } }
+            .alloc = std.testing.allocator,
+            .node = .{
+                .definition = .{
+                    .variable = .{
+                        .identifier = "hello",
+                        .mutable = false,
+                        .expression = &.{ .literal = .{ .str = "world" } }
+                    }
                 }
             }
         },
     };
 
     const ast = parse_tokens(std.testing.allocator, &input);
-    defer std.testing.allocator.free(ast);
+    defer {
+        for (ast) |astnode| astnode.deinit();
+        std.testing.allocator.free(ast);
+    }
 
     // for (ast) |node| node.prittyprint();
-    for (ast, 0..) |node, i| try node.assert_eq(&expected[i]);
+    for (ast, 0..) |astnode, i| try astnode.assert_eq(&expected[i]);
 }
 
 test "single binary operator" {
@@ -265,17 +309,23 @@ test "single binary operator" {
     };
 
     const expected: ASTNode = .{
-        .definition = .{
-            .variable = .{
-                .identifier = "five",
-                .mutable = false,
-                .expression = bin_expr,
+        .alloc = std.testing.allocator,
+        .node = .{
+            .definition = .{
+                .variable = .{
+                    .identifier = "five",
+                    .mutable = false,
+                    .expression = &bin_expr,
+                }
             }
         }
     };
 
     const ast = parse_tokens(std.testing.allocator, &input);
-    defer std.testing.allocator.free(ast);
+    defer {
+        for (ast) |astnode| astnode.deinit();
+        std.testing.allocator.free(ast);
+    }
 
     ast[0].prittyprint();
     try expected.assert_eq(&ast[0]);
@@ -330,17 +380,23 @@ test "multiple binary operator same precendence" {
     };
 
     const expected: ASTNode = .{
-        .definition = .{
-            .variable = .{
-                .identifier = "five",
-                .mutable = false,
-                .expression = forth
+        .alloc = std.testing.allocator,
+        .node = .{
+            .definition = .{
+                .variable = .{
+                    .identifier = "five",
+                    .mutable = false,
+                    .expression = &forth
+                }
             }
         }
     };
 
     const ast = parse_tokens(std.testing.allocator, &input);
-    defer std.testing.allocator.free(ast);
+    defer {
+        for (ast) |astnode| astnode.deinit();
+        std.testing.allocator.free(ast);
+    }
 
     ast[0].prittyprint();
     try expected.assert_eq(&ast[0]);
@@ -420,17 +476,23 @@ test "multiple binary operator different precendence" {
     };
 
     const expected: ASTNode = .{
-        .definition = .{
-            .variable = .{
-                .identifier = "five",
-                .mutable = false,
-                .expression = fifth
+        .alloc = std.testing.allocator,
+        .node = .{
+            .definition = .{
+                .variable = .{
+                    .identifier = "five",
+                    .mutable = false,
+                    .expression = &fifth
+                }
             }
         }
     };
 
     const ast = parse_tokens(std.testing.allocator, &input);
-    defer std.testing.allocator.free(ast);
+    defer {
+        for (ast) |astnode| astnode.deinit();
+        std.testing.allocator.free(ast);
+    }
 
     ast[0].prittyprint();
     try expected.assert_eq(&ast[0]);
