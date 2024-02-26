@@ -123,12 +123,13 @@ const Parser = struct {
                 std.debug.print("{} <= {}\n", .{curr_op.precedence(), called_prec});
                 var left = allocator.create(Expression)
                     catch return ParseError.OutOfMemory;
-                left.* = leaf.*;
+                std.mem.swap(Expression, left, leaf);
+                const right = try self.parse_leaf(allocator);
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
                         .operator = curr_op,
-                        .rhs = try self.parse_leaf(allocator),
+                        .rhs = right,
                     }
                 };
                 called_prec = curr_op.precedence();
@@ -137,7 +138,7 @@ const Parser = struct {
                 std.debug.print("{} > {}\n", .{curr_op.precedence(), called_prec});
                 var left = allocator.create(Expression)
                     catch return ParseError.OutOfMemory;
-                left.* = leaf.*;
+                std.mem.swap(Expression, left, leaf);
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
@@ -148,7 +149,6 @@ const Parser = struct {
             }
             leaf.prittyprint(0);
         }
-        if (is_binary) leaf.prittyprint(0);
         return leaf;
     }
 

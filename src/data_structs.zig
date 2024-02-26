@@ -139,12 +139,10 @@ pub const Expression = union(enum) {
         switch (self.*) {
             .literal => |lit| lit.prittyprint(spaces + 2), 
             .identifier => |ident| {
-                defer print("\n", .{});
                 p_spaces(spaces + 2);
                 print("Ident: {s}", .{ident});
             },
             .binary => |bin| {
-                defer print("\n", .{});
                 p_spaces(spaces + 2);
                 print("Binary:\n", .{});
                 p_spaces(spaces + 4);
@@ -159,7 +157,7 @@ pub const Expression = union(enum) {
                 bin.lhs.prittyprint(spaces + 6);
                 p_spaces(spaces + 4);
                 print("Right:\n", .{});
-                bin.lhs.prittyprint(spaces + 6);
+                bin.rhs.prittyprint(spaces + 6);
             }
         }
     }
@@ -276,7 +274,11 @@ pub const BinaryOperator = union(enum) {
 };
 
 fn p_spaces(num: u8) void {
-    for (0..num) |_| {
-        std.debug.print(" ", .{});
+    for (0..num) |n| {
+        if (n > 8 and n % 6 == 4) {
+            std.debug.print("|", .{});
+        } else {
+            std.debug.print(" ", .{});
+        }
     }
 }
