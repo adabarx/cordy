@@ -103,8 +103,8 @@ const Parser = struct {
         return leaf;
     }
 
-    fn parse_expression(self: *Self, allocator: Allocator, precedence: u8) ParseError!*Expression {
-        var called_prec = precedence;
+    fn parse_expression(self: *Self, allocator: Allocator, prec: u8) ParseError!*Expression {
+        var called_prec = prec;
         var leaf = self.parse_leaf(allocator)
             catch return ParseError.OutOfMemory;
         // check for binary op
@@ -114,7 +114,7 @@ const Parser = struct {
                 // if precedence is equal or decreases: left to right and loop
                 var left = allocator.create(Expression)
                     catch return ParseError.OutOfMemory;
-                std.mem.swap(Expression, left, leaf);
+                left.* = leaf.*;
                 const right = try self.parse_leaf(allocator);
                 leaf.* = .{
                     .binary = .{
@@ -128,7 +128,7 @@ const Parser = struct {
                 // else precedence increases: right to left and recurse
                 var left = allocator.create(Expression)
                     catch return ParseError.OutOfMemory;
-                std.mem.swap(Expression, left, leaf);
+                left.* = leaf.*;
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
