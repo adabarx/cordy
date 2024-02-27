@@ -95,27 +95,54 @@ const Parser = struct {
     fn parse_leaf(self: *Self, allocator: Allocator) ParseError!*Expression {
         var leaf = allocator.create(Expression)
             catch return ParseError.OutOfMemory;
-        leaf.* = try switch (self.read_token()) {
+        leaf.* = switch (self.read_token()) {
             .int, .flt, .str, .boolean => Expression{ .literal = try self.parse_literal() },
             .ident => |id| Expression{ .identifier = id },
-            else => ParseError.IllegalExpression,
+            else => {
+                std.debug.print("IllegalExpression: {}\n", .{self.read_token()});
+                return ParseError.IllegalExpression;
+            },
         };
         return leaf;
     }
 
     fn parse_expression(self: *Self, allocator: Allocator, prec: u8) ParseError!*Expression {
-        var called_prec = prec;
-        var leaf = self.parse_leaf(allocator)
-            catch return ParseError.OutOfMemory;
+        var called_precedence = prec;
+        var leaf = try self.parse_leaf(allocator);
         // check for binary op
         while (self.next_token().get_binary_operator()) |curr_op| {
             _ = self.next_token();
-            if (curr_op.precedence() <= called_prec) {
-                // if precedence is equal or decreases: left to right and loop
-                var left = allocator.create(Expression)
-                    catch return ParseError.OutOfMemory;
-                left.* = leaf.*;
-                const right = try self.parse_leaf(allocator);
+            var left = allocator.create(Expression)
+                catch return ParseError.OutOfMemory;
+            left.* = leaf.*;
+
+            if (curr_op.precedence() > called_precedence) {
+                leaf.* = .{
+                    .binary = .{
+                        .lhs = left,
+                        .operator = curr_op,
+                        .rhs = try self.parse_leaf(allocator),
+                    }
+                };
+                called_precedence = curr_op.precedence();
+                continue;
+            }
+
+            var right = try self.parse_leaf(allocator);
+            const next_op = if (self.peek_token(1).get_binary_operator()) |op| op
+                else {
+                    leaf.* = .{
+                        .binary = .{
+                            .lhs = left,
+                            .operator = curr_op,
+                            .rhs = right,
+                        }
+                    };
+                    called_precedence = curr_op.precedence();
+                    continue;
+                };
+
+            if (next_op.precedence() <= curr_op.precedence()) {
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
@@ -123,19 +150,29 @@ const Parser = struct {
                         .rhs = right,
                     }
                 };
-                called_prec = curr_op.precedence();
+                called_precedence = curr_op.precedence();
             } else {
-                // else precedence increases: right to left and recurse
-                var left = allocator.create(Expression)
+                _ = self.next_token(); // gets us onto the operator
+                _ = self.next_token(); // gets us to parse_leaf state
+
+                const third = try self.parse_leaf(allocator);
+                var inner = allocator.create(Expression)
                     catch return ParseError.OutOfMemory;
-                left.* = leaf.*;
+                inner.* = .{
+                    .binary = .{
+                        .lhs = right,
+                        .operator = next_op,
+                        .rhs = third,
+                    }
+                };
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
                         .operator = curr_op,
-                        .rhs = try self.parse_expression(allocator, curr_op.precedence()),
+                        .rhs = inner,
                     }
                 };
+                called_precedence = next_op.precedence();
             }
         }
         return leaf;
@@ -266,7 +303,6 @@ test "Parse into AST" {
         std.testing.allocator.free(ast);
     }
 
-    for (ast) |node| node.prittyprint();
     for (ast, 0..) |astnode, i| try astnode.assert_eq(&expected[i]);
 }
 
@@ -310,7 +346,6 @@ test "single binary operator" {
         std.testing.allocator.free(ast);
     }
 
-    ast[0].prittyprint();
     try expected.assert_eq(&ast[0]);
 }
 
@@ -336,7 +371,7 @@ test "multiple binary operator same precendence" {
     const first: Expression = .{
         .binary = .{
             .lhs = &.{ .literal = .{ .int = 5 } },
-            .rhs = &.{ .literal = .{ .int = 3 } },
+            .rhs = &.{ .literal = .{ .int = 7 } },
             .operator = .add 
         }
     };
@@ -381,14 +416,13 @@ test "multiple binary operator same precendence" {
         std.testing.allocator.free(ast);
     }
 
-    ast[0].prittyprint();
     try expected.assert_eq(&ast[0]);
 }
 
 test "multiple binary operator different precendence" {
-    // let five = 5 + 7 * 6 - 3 / 9 + 1
-    //            5 + (7 * 6) - (3 / 9) + 1
-    //            ((5 + (7 * 6)) - (3 / 9)) + 1
+    // let five = 5 + 7 * 7 - 3 / 9 + 1
+    //            5 + (7 * 7) - (3 / 9) + 1
+    //            ((5 + (7 * 7)) - (3 / 9)) + 1
     //
     // tree rep:
     //
@@ -401,7 +435,7 @@ test "multiple binary operator different precendence" {
     //      / \    / \
     //     5   *  3   9
     //        / \
-    //       7   6
+    //       7   7
     const input = [_]Token{
         .let,
         .{ .ident = "five" },
@@ -477,6 +511,9 @@ test "multiple binary operator different precendence" {
         std.testing.allocator.free(ast);
     }
 
+    std.debug.print("\nExpected:", .{});
+    expected.prittyprint();
+    std.debug.print("Output:", .{});
     ast[0].prittyprint();
     try expected.assert_eq(&ast[0]);
 }
