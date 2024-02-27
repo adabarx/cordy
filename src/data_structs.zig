@@ -147,10 +147,27 @@ pub const Expression = union(enum) {
                 print("Binary:\n", .{});
                 p_spaces(spaces + 4);
                 print("Operator: {s}\n", .{switch (bin.operator) {
+                    .assign => "=",
+
                     .add => "+",
                     .subtract => "-",
                     .multiply => "*",
                     .divide => "/",
+
+                    .and_tok => "and",
+                    .or_tok => "or",
+                    .xor => "xor",
+                    .not_and => "!and",
+                    .not_or => "!or",
+                    .not_xor => "!xor",
+
+                    .equal => "==",
+                    .not_equal => "!=",
+                    .greater_than => ">",
+                    .lesser_than => "<",
+                    .greater_equal => ">=",
+                    .lesser_equal => "<=",
+                    .struct_access => ".",
                 }});
                 p_spaces(spaces + 4);
                 print("Left:\n", .{});
@@ -240,8 +257,11 @@ pub const Token = union(enum) {
             .{ "let", .let },
             .{ "mut", .mut },
             .{ "ctt", .cantTouchThis },
-            .{ "True", .{ .boolean = true } },
-            .{ "False", .{ .boolean = false } },
+            .{ "true", .{ .boolean = true } },
+            .{ "false", .{ .boolean = false } },
+            .{ "and", .{ .binary = .{ .and_tok } } },
+            .{ "or", .{ .binary = .{ .or_tok } } },
+            .{ "xor", .{ .binary = .{ .xor } } },
         });
         return map.get(ident);
     }
@@ -260,15 +280,39 @@ pub const UnaryPrefixOperator = union(enum) {
 };
 
 pub const BinaryOperator = union(enum) {
+    assign,
+
+    and_tok,
+    or_tok,
+    xor,
+    not_and,
+    not_or,
+    not_xor,
+
+    equal,
+    not_equal,
+    greater_than,
+    lesser_than,
+    greater_equal,
+    lesser_equal,
+
     add,
     subtract,
     multiply,
     divide,
 
+    struct_access,
+
     pub fn precedence(self: *const BinaryOperator) u8 {
         return switch (self.*) {
-            .multiply, .divide => 1,
-            .add, .subtract => 0,
+            .struct_access => 5,
+            .multiply, .divide => 4,
+            .add, .subtract => 3,
+            .equal, .not_equal, .greater_than,
+                .lesser_than, .greater_equal, .lesser_equal, => 2,
+            .and_tok, .or_tok, .xor,
+                .not_and, .not_or, .not_xor => 1,
+            .assign => 0,
         };
     }
 };

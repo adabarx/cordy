@@ -106,11 +106,7 @@ const Parser = struct {
         return leaf;
     }
 
-    fn parse_expression(
-        self: *Self,
-        allocator: Allocator,
-        recursion: u8
-    ) ParseError!*Expression {
+    fn parse_expression(self: *Self, allocator: Allocator, recursion: u8) ParseError!*Expression {
         var leaf = try self.parse_leaf(allocator);
         // check for binary op
         while (self.next_token().get_binary_operator()) |curr_op| {
