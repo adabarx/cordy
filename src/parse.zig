@@ -106,8 +106,11 @@ const Parser = struct {
         return leaf;
     }
 
-    fn parse_expression(self: *Self, allocator: Allocator, prec: u8) ParseError!*Expression {
-        var called_precedence = prec;
+    fn parse_expression(
+        self: *Self,
+        allocator: Allocator,
+        recursion: u8
+    ) ParseError!*Expression {
         var leaf = try self.parse_leaf(allocator);
         // check for binary op
         while (self.next_token().get_binary_operator()) |curr_op| {
@@ -115,18 +118,6 @@ const Parser = struct {
             var left = allocator.create(Expression)
                 catch return ParseError.OutOfMemory;
             left.* = leaf.*;
-
-            if (curr_op.precedence() > called_precedence) {
-                leaf.* = .{
-                    .binary = .{
-                        .lhs = left,
-                        .operator = curr_op,
-                        .rhs = try self.parse_leaf(allocator),
-                    }
-                };
-                called_precedence = curr_op.precedence();
-                continue;
-            }
 
             var right = try self.parse_leaf(allocator);
             const next_op = if (self.peek_token(1).get_binary_operator()) |op| op
@@ -138,8 +129,8 @@ const Parser = struct {
                             .rhs = right,
                         }
                     };
-                    called_precedence = curr_op.precedence();
-                    continue;
+                    // no more binary operators
+                    return leaf;
                 };
 
             if (next_op.precedence() <= curr_op.precedence()) {
@@ -150,30 +141,16 @@ const Parser = struct {
                         .rhs = right,
                     }
                 };
-                called_precedence = curr_op.precedence();
             } else {
-                _ = self.next_token(); // gets us onto the operator
-                _ = self.next_token(); // gets us to parse_leaf state
-
-                const third = try self.parse_leaf(allocator);
-                var inner = allocator.create(Expression)
-                    catch return ParseError.OutOfMemory;
-                inner.* = .{
-                    .binary = .{
-                        .lhs = right,
-                        .operator = next_op,
-                        .rhs = third,
-                    }
-                };
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
                         .operator = curr_op,
-                        .rhs = inner,
+                        .rhs = try self.parse_expression(allocator, recursion + 1),
                     }
                 };
-                called_precedence = next_op.precedence();
             }
+            if (recursion > 0) return leaf;
         }
         return leaf;
     }
@@ -297,11 +274,13 @@ test "Parse into AST" {
         },
     };
 
-    const ast = parse_tokens(std.testing.allocator, &input);
-    defer {
-        for (ast) |astnode| astnode.deinit();
-        std.testing.allocator.free(ast);
-    }
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const ast = parse_tokens(arena.allocator(), &input);
+    defer arena.deinit();
+    // defer {
+    //     for (ast) |astnode| astnode.deinit();
+    //     std.testing.allocator.free(ast);
+    // }
 
     for (ast, 0..) |astnode, i| try astnode.assert_eq(&expected[i]);
 }
@@ -340,11 +319,13 @@ test "single binary operator" {
         }
     };
 
-    const ast = parse_tokens(std.testing.allocator, &input);
-    defer {
-        for (ast) |astnode| astnode.deinit();
-        std.testing.allocator.free(ast);
-    }
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const ast = parse_tokens(arena.allocator(), &input);
+    defer arena.deinit();
+    // defer {
+    //     for (ast) |astnode| astnode.deinit();
+    //     std.testing.allocator.free(ast);
+    // }
 
     try expected.assert_eq(&ast[0]);
 }
@@ -410,11 +391,13 @@ test "multiple binary operator same precendence" {
         }
     };
 
-    const ast = parse_tokens(std.testing.allocator, &input);
-    defer {
-        for (ast) |astnode| astnode.deinit();
-        std.testing.allocator.free(ast);
-    }
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const ast = parse_tokens(arena.allocator(), &input);
+    defer arena.deinit();
+    // defer {
+    //     for (ast) |astnode| astnode.deinit();
+    //     std.testing.allocator.free(ast);
+    // }
 
     try expected.assert_eq(&ast[0]);
 }
@@ -505,11 +488,13 @@ test "multiple binary operator different precendence" {
         }
     };
 
-    const ast = parse_tokens(std.testing.allocator, &input);
-    defer {
-        for (ast) |astnode| astnode.deinit();
-        std.testing.allocator.free(ast);
-    }
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const ast = parse_tokens(arena.allocator(), &input);
+    defer arena.deinit();
+    // defer {
+    //     for (ast) |astnode| astnode.deinit();
+    //     std.testing.allocator.free(ast);
+    // }
 
     std.debug.print("\nExpected:", .{});
     expected.prittyprint();
