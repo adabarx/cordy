@@ -73,7 +73,7 @@ const Parser = struct {
             .ident => |id| id,
             else => return ParseError.IllegalLetIdent
         };
-
+        
         return if (self.next_token().get_binary_operator()) |op|
             switch (op) {
                 .assign => {
@@ -106,20 +106,21 @@ const Parser = struct {
                 return ParseError.IllegalExpression;
             },
         };
+        _ = self.next_token();
         return leaf;
     }
 
     fn parse_expression(self: *Self, allocator: Allocator, recursion: u8) ParseError!*Expression {
         var leaf = try self.parse_leaf(allocator);
         // check for binary op
-        while (self.next_token().get_binary_operator()) |curr_op| {
+        while (self.read_token().get_binary_operator()) |curr_op| {
             _ = self.next_token();
             var left = allocator.create(Expression)
                 catch return ParseError.OutOfMemory;
             left.* = leaf.*;
 
             var right = try self.parse_leaf(allocator);
-            const next_op = self.peek_token(1).get_binary_operator()
+            const next_op = self.read_token().get_binary_operator()
                 orelse {
                     leaf.* = .{
                         .binary = .{
@@ -401,7 +402,7 @@ test "multiple binary operator same precendence" {
     try expected.assert_eq(&ast[0]);
 }
 
-test "multiple binary operator different precendence" {
+test "multiple binary operator two levels of precendence" {
     // let five = 5 + 7 * 7 - 3 / 9 + 1
     //            5 + (7 * 7) - (3 / 9) + 1
     //            ((5 + (7 * 7)) - (3 / 9)) + 1
@@ -501,5 +502,4 @@ test "multiple binary operator different precendence" {
     ast[0].prittyprint();
     try expected.assert_eq(&ast[0]);
 }
-
 

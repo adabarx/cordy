@@ -8,19 +8,18 @@ const Literal = data_structs.Literal;
 const BinaryOperator = data_structs.BinaryOperator;
 
 pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u8 {
-    std.debug.print("\n{any}\n", .{input});
     var output = std.ArrayList(u8).init(allocator);
     defer output.deinit();
 
     for (input) |statement| {
-        switch (statement) {
+        switch (statement.node) {
             .definition => |def| {
                 const rv = try gen_definition(allocator, def);
                 defer allocator.free(rv);
                 try output.appendSlice(rv);
             },
             .expression => |exp| {
-                const rv = try gen_expression(allocator, &exp);
+                const rv = try gen_expression(allocator, exp);
                 defer allocator.free(rv);
                 try output.appendSlice(rv);
             },
@@ -46,7 +45,7 @@ fn gen_definition(allocator: std.mem.Allocator, input: Definition) ![]const u8 {
             try output.appendSlice(variable.identifier);
             try output.appendSlice(" = ");
 
-            const rv = try gen_expression(allocator, &(variable.expression));
+            const rv = try gen_expression(allocator, variable.expression);
             defer allocator.free(rv);
             try output.appendSlice(rv);
         },
@@ -75,7 +74,7 @@ fn gen_expression(allocator: std.mem.Allocator, input: *const Expression) ![]con
 
             try output.appendSlice(lhs);
             try output.appendSlice(gen_operator(expr.operator));
-            try output.appendSlice(lhs);
+            try output.appendSlice(rhs);
         },
     }
 
@@ -84,10 +83,24 @@ fn gen_expression(allocator: std.mem.Allocator, input: *const Expression) ![]con
 
 fn gen_operator(op: BinaryOperator) []const u8 {
     return switch (op) {
+        .assign => " = ",
+
+        .and_tok => " and ",
+        .or_tok => " or ",
+
+        .equal => " == ",
+        .not_equal => " != ",
+        .greater_than => " > ",
+        .lesser_than => " < ",
+        .greater_equal => " >= ",
+        .lesser_equal => " <= ",
+
         .subtract => " - ",
         .add => " + ",
         .multiply => " * ",
         .divide => " / ",
+
+        .struct_access => ".",
     };
 }
 
@@ -120,7 +133,7 @@ fn gen_literal(allocator: std.mem.Allocator, input: Literal) ![]const u8 {
 }
 
 const expectEqualDeep = std.testing.expectEqualDeep;
-test "Generate Zig Code" {
+test "Generate Assignment" {
     const input = [_]ASTNode{
         ASTNode{ .definition = .{ .variable = .{ .identifier = "five", .mutable = false, .expression = .{ .literal = .{ .int = 5 } } } } },
         ASTNode{ .definition = .{ .variable = .{ .identifier = "neg_ten", .mutable = false, .expression = .{ .literal = .{ .int = -10 } } } } },

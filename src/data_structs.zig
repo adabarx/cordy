@@ -258,9 +258,9 @@ pub const Token = union(enum) {
             .{ "ctt", .cantTouchThis },
             .{ "true", .{ .boolean = true } },
             .{ "false", .{ .boolean = false } },
-            .{ "and", .{ .binary = .{ .and_tok } } },
-            .{ "or", .{ .binary = .{ .or_tok } } },
-            .{ "xor", .{ .binary = .{ .xor } } },
+            .{ "and", .{ .binary_operator = .and_tok } },
+            .{ "or", .{ .binary_operator = .or_tok } },
+            // .{ "xor", .{ .binary = .{ .xor } } },
         });
         return map.get(ident);
     }
@@ -283,10 +283,11 @@ pub const BinaryOperator = union(enum) {
 
     and_tok,
     or_tok,
-    xor,
-    not_and,
-    not_or,
-    not_xor,
+    // these will come later
+    // xor,
+    // not_and,
+    // not_or,
+    // not_xor,
 
     equal,
     not_equal,
@@ -304,13 +305,13 @@ pub const BinaryOperator = union(enum) {
 
     pub fn precedence(self: *const BinaryOperator) u8 {
         return switch (self.*) {
-            .struct_access => 5,
-            .multiply, .divide => 4,
-            .add, .subtract => 3,
+            .struct_access => 6,
+            .multiply, .divide => 5,
+            .add, .subtract => 4,
             .equal, .not_equal, .greater_than,
-                .lesser_than, .greater_equal, .lesser_equal, => 2,
-            .and_tok, .or_tok, .xor,
-                .not_and, .not_or, .not_xor => 1,
+                .lesser_than, .greater_equal, .lesser_equal, => 3,
+            .and_tok => 2,
+            .or_tok => 1,
             .assign => 0,
         };
     }

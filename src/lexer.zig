@@ -143,24 +143,24 @@ pub fn tokenize(allocator: std.mem.Allocator, input: []const u8) ![]const Token 
         if (curr_token == .binary_operator and next_token == .newline) {
             next_token = lex.next_token();
         }
-        if (curr_token == .{ .unary_prefix_operator = .not }) {
-            if (next_token.get_binary_operator()) |op| {
-                switch (op) {
-                    .and_tok => {
-                        curr_token = .{ .binary_operator = .not_and };
-                        next_token = lex.next_token();
-                    },
-                    .or_tok => {
-                        curr_token = .{ .binary_operator = .not_or };
-                        next_token = lex.next_token();
-                    },
-                    .xor => {
-                        curr_token = .{ .binary_operator = .not_xor };
-                        next_token = lex.next_token();
-                    },
-                }
-            }
-        }
+        // if (curr_token == .{ .unary_prefix_operator = .not }) {
+        //     if (next_token.get_binary_operator()) |op| {
+        //         switch (op) {
+        //             .and_tok => {
+        //                 curr_token = .{ .binary_operator = .not_and };
+        //                 next_token = lex.next_token();
+        //             },
+        //             .or_tok => {
+        //                 curr_token = .{ .binary_operator = .not_or };
+        //                 next_token = lex.next_token();
+        //             },
+        //             .xor => {
+        //                 curr_token = .{ .binary_operator = .not_xor };
+        //                 next_token = lex.next_token();
+        //             },
+        //         }
+        //     }
+        // }
 
         try rv.append(curr_token);
         if (curr_token == .eof) break;

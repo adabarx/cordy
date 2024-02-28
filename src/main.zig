@@ -11,8 +11,10 @@ pub fn main() !void {
     const path: []const u8 = std.mem.sliceTo(arg, 0);
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    const allocator = arena.allocator();
+    // defer _ = gpa.deinit();
+    defer _ = arena.deinit();
 
     // read the input file
     const input = try fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
