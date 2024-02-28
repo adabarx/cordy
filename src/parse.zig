@@ -116,8 +116,8 @@ const Parser = struct {
             left.* = leaf.*;
 
             var right = try self.parse_leaf(allocator);
-            const next_op = if (self.peek_token(1).get_binary_operator()) |op| op
-                else {
+            const next_op = self.peek_token(1).get_binary_operator()
+                orelse {
                     leaf.* = .{
                         .binary = .{
                             .lhs = left,
