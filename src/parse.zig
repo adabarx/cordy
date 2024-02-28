@@ -68,28 +68,31 @@ const Parser = struct {
             mutt = true;
             _ = self.next_token();
         }
-        const ident: []const u8 = try switch (self.read_token()) {
-            .ident => |name| name,
-            else => ParseError.IllegalLetIdent,
+
+        const ident: []const u8 = switch (self.read_token()) {
+            .ident => |id| id,
+            else => return ParseError.IllegalLetIdent
         };
-        return switch (self.next_token()) {
-            .assign => {
-                _ = self.next_token();
-                return .{
-                    .alloc = allocator,
-                    .node = .{ 
-                        .definition = .{
-                            .variable = .{
-                                .identifier = ident,
-                                .mutable = mutt,
-                                .expression = try self.parse_expression(allocator, 0),
+
+        return if (self.next_token().get_binary_operator()) |op|
+            switch (op) {
+                .assign => {
+                    _ = self.next_token();
+                    return .{
+                        .alloc = allocator,
+                        .node = .{ 
+                            .definition = .{
+                                .variable = .{
+                                    .identifier = ident,
+                                    .mutable = mutt,
+                                    .expression = try self.parse_expression(allocator, 0),
+                                }
                             }
                         }
-                    }
-                };
-            },
-            else => ParseError.IllegalLetAssign,
-        };
+                    };
+                },
+                else => ParseError.IllegalLetAssign,
+            } else ParseError.IllegalLetAssign;
     }
 
     fn parse_leaf(self: *Self, allocator: Allocator) ParseError!*Expression {
@@ -198,11 +201,11 @@ pub fn parse_tokens(allocator: std.mem.Allocator, tokens: []const Token) []const
 const expectEqualDeep = std.testing.expectEqualDeep;
 test "Parse into AST" {
     const input = [_]Token{
-        .let, .{ .ident = "five" }, .assign, .{ .int = "5" }, .newline,
-        .let, .{ .ident = "neg_ten" }, .assign, .{ .int = "-10" }, .newline,
-        .let, .mut, .{ .ident = "pi" }, .assign, .{ .flt = "3.14" }, .newline,
-        .let, .mut, .{ .ident = "neg_e" }, .assign, .{ .flt = "-2.72" }, .newline,
-        .let, .{ .ident = "hello" }, .assign, .{ .str = "world" }, .newline,
+        .let, .{ .ident = "five" }, .{ .binary_operator = .assign }, .{ .int = "5" }, .newline,
+        .let, .{ .ident = "neg_ten" }, .{ .binary_operator = .assign }, .{ .int = "-10" }, .newline,
+        .let, .mut, .{ .ident = "pi" }, .{ .binary_operator = .assign }, .{ .flt = "3.14" }, .newline,
+        .let, .mut, .{ .ident = "neg_e" }, .{ .binary_operator = .assign }, .{ .flt = "-2.72" }, .newline,
+        .let, .{ .ident = "hello" }, .{ .binary_operator = .assign }, .{ .str = "world" }, .newline,
 
         .eof,
     };
@@ -285,7 +288,7 @@ test "single binary operator" {
     const input = [_]Token{
         .let,
         .{ .ident = "five" },
-        .assign,
+        .{ .binary_operator = .assign },
         .{ .int = "5" },
         .{ .binary_operator = .add },
         .{ .int = "7" },
@@ -330,7 +333,7 @@ test "multiple binary operator same precendence" {
     const input = [_]Token{
         .let,
         .{ .ident = "five" },
-        .assign,
+        .{ .binary_operator = .assign },
         .{ .int = "5" },
         .{ .binary_operator = .add },
         .{ .int = "7" },
@@ -418,7 +421,7 @@ test "multiple binary operator different precendence" {
     const input = [_]Token{
         .let,
         .{ .ident = "five" },
-        .assign,
+        .{ .binary_operator = .assign },
         .{ .int = "5" },
         .{ .binary_operator = .add },
         .{ .int = "7" },

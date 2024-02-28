@@ -244,7 +244,6 @@ pub const Token = union(enum) {
     let,
     mut,
     dash,
-    assign,
     newline,
     cantTouchThis,
     eof,
