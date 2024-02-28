@@ -74,25 +74,21 @@ const Parser = struct {
             else => return ParseError.IllegalLetIdent
         };
         
-        return if (self.next_token().get_binary_operator()) |op|
-            switch (op) {
-                .assign => {
-                    _ = self.next_token();
-                    return .{
-                        .alloc = allocator,
-                        .node = .{ 
-                            .definition = .{
-                                .variable = .{
-                                    .identifier = ident,
-                                    .mutable = mutt,
-                                    .expression = try self.parse_expression(allocator, 0),
-                                }
-                            }
-                        }
-                    };
-                },
-                else => ParseError.IllegalLetAssign,
-            } else ParseError.IllegalLetAssign;
+        const operator = self.next_token().get_binary_operator() orelse return ParseError.IllegalLetAssign;
+        if (operator != .assign) return ParseError.IllegalLetAssign;
+        _ = self.next_token();
+        return .{
+            .alloc = allocator,
+            .node = .{ 
+                .definition = .{
+                    .variable = .{
+                        .identifier = ident,
+                        .mutable = mutt,
+                        .expression = try self.parse_expression(allocator, 0),
+                    }
+                }
+            }
+        };
     }
 
     fn parse_leaf(self: *Self, allocator: Allocator) ParseError!*Expression {
