@@ -156,10 +156,10 @@ pub const Expression = union(enum) {
 
                     .and_tok => "and",
                     .or_tok => "or",
-                    .xor => "xor",
-                    .not_and => "!and",
-                    .not_or => "!or",
-                    .not_xor => "!xor",
+                    // .xor => "xor",
+                    // .not_and => "!and",
+                    // .not_or => "!or",
+                    // .not_xor => "!xor",
 
                     .equal => "==",
                     .not_equal => "!=",
@@ -241,7 +241,7 @@ pub const Token = union(enum) {
     binary_operator: BinaryOperator,
     unary_prefix_operator: UnaryPrefixOperator,
 
-    let,
+    colon,
     mut,
     dash,
     newline,
@@ -253,7 +253,6 @@ pub const Token = union(enum) {
 
     pub fn keyword(ident: []const u8) ?Token {
         const map = std.ComptimeStringMap(Token, .{
-            .{ "let", .let },
             .{ "mut", .mut },
             .{ "ctt", .cantTouchThis },
             .{ "true", .{ .boolean = true } },

@@ -16,6 +16,8 @@ const Parser = struct {
         IllegalStatement,
         IllegalLetIdent,
         IllegalLetAssign,
+        IllegalLetNotBinOp,
+        IllegalLetNotAssign,
         IllegalExpression,
         IllegalLiteral,
 
@@ -47,7 +49,11 @@ const Parser = struct {
         while (self.read_token() == .newline) _ = self.next_token();
 
         return switch (self.read_token()) {
-            .let => self.parse_let_statement(allocator),
+            .ident => |id| blk: {
+                if (self.next_token() == .colon) {
+                    break :blk self.parse_assign(allocator, id);
+                }
+            },
             .int, .flt, .str, .boolean => .{
                 .alloc = allocator,
                 .node = .{
@@ -62,32 +68,28 @@ const Parser = struct {
         };
     }
 
-    fn parse_let_statement(self: *Self, allocator: Allocator) ParseError!ASTNode {
+    fn parse_assign(self: *Self, allocator: Allocator, ident: []const u8) ParseError!ASTNode {
         var mutt = false;
         if (self.next_token() == .mut) {
             mutt = true;
             _ = self.next_token();
         }
 
-        const ident: []const u8 = switch (self.read_token()) {
-            .ident => |id| id,
-            else => return ParseError.IllegalLetIdent
-        };
-        
-        const operator = self.next_token().get_binary_operator() orelse return ParseError.IllegalLetAssign;
-        if (operator != .assign) return ParseError.IllegalLetAssign;
+        const operator = self.read_token().get_binary_operator() orelse return ParseError.IllegalLetNotBinOp;
+        if (operator != .assign) return ParseError.IllegalLetNotAssign;
         _ = self.next_token();
+        defer _ = self.next_token(); // hack to stop parser from hanging on to last leaf
+                                     // doesn't work when put at the end of parse_expression
+                                     // for some reason *sigh*
         return .{
             .alloc = allocator,
-            .node = .{ 
-                .definition = .{
-                    .variable = .{
-                        .identifier = ident,
-                        .mutable = mutt,
-                        .expression = try self.parse_expression(allocator, 0),
-                    }
+            .node = .{ .definition = .{
+                .variable = .{
+                    .identifier = ident,
+                    .mutable = mutt,
+                    .expression = try self.parse_expression(allocator, 0),
                 }
-            }
+            } }
         };
     }
 
@@ -102,21 +104,20 @@ const Parser = struct {
                 return ParseError.IllegalExpression;
             },
         };
-        _ = self.next_token();
         return leaf;
     }
 
     fn parse_expression(self: *Self, allocator: Allocator, recursion: u8) ParseError!*Expression {
         var leaf = try self.parse_leaf(allocator);
         // check for binary op
-        while (self.read_token().get_binary_operator()) |curr_op| {
+        while (self.next_token().get_binary_operator()) |curr_op| {
             _ = self.next_token();
             var left = allocator.create(Expression)
                 catch return ParseError.OutOfMemory;
             left.* = leaf.*;
 
             var right = try self.parse_leaf(allocator);
-            const next_op = self.read_token().get_binary_operator()
+            const next_op = self.peek_token(1).get_binary_operator()
                 orelse {
                     leaf.* = .{
                         .binary = .{
@@ -138,6 +139,7 @@ const Parser = struct {
                     }
                 };
             } else {
+                allocator.destroy(right);
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
@@ -148,6 +150,7 @@ const Parser = struct {
             }
             if (recursion > 0) return leaf;
         }
+        // _ = self.next_token();
         return leaf;
     }
 
@@ -198,11 +201,11 @@ pub fn parse_tokens(allocator: std.mem.Allocator, tokens: []const Token) []const
 const expectEqualDeep = std.testing.expectEqualDeep;
 test "Parse into AST" {
     const input = [_]Token{
-        .let, .{ .ident = "five" }, .{ .binary_operator = .assign }, .{ .int = "5" }, .newline,
-        .let, .{ .ident = "neg_ten" }, .{ .binary_operator = .assign }, .{ .int = "-10" }, .newline,
-        .let, .mut, .{ .ident = "pi" }, .{ .binary_operator = .assign }, .{ .flt = "3.14" }, .newline,
-        .let, .mut, .{ .ident = "neg_e" }, .{ .binary_operator = .assign }, .{ .flt = "-2.72" }, .newline,
-        .let, .{ .ident = "hello" }, .{ .binary_operator = .assign }, .{ .str = "world" }, .newline,
+        .{ .ident = "five" }, .colon, .{ .binary_operator = .assign }, .{ .int = "5" }, .newline,
+        .{ .ident = "neg_ten" }, .colon, .{ .binary_operator = .assign }, .{ .int = "-10" }, .newline,
+        .{ .ident = "pi" }, .colon, .mut, .{ .binary_operator = .assign }, .{ .flt = "3.14" }, .newline,
+        .{ .ident = "neg_e" }, .colon, .mut, .{ .binary_operator = .assign }, .{ .flt = "-2.72" }, .newline,
+        .{ .ident = "hello" }, .colon, .{ .binary_operator = .assign }, .{ .str = "world" }, .newline,
 
         .eof,
     };
@@ -283,8 +286,8 @@ test "Parse into AST" {
 
 test "single binary operator" {
     const input = [_]Token{
-        .let,
         .{ .ident = "five" },
+        .colon,
         .{ .binary_operator = .assign },
         .{ .int = "5" },
         .{ .binary_operator = .add },
@@ -328,8 +331,8 @@ test "single binary operator" {
 
 test "multiple binary operator same precendence" {
     const input = [_]Token{
-        .let,
         .{ .ident = "five" },
+        .colon,
         .{ .binary_operator = .assign },
         .{ .int = "5" },
         .{ .binary_operator = .add },
@@ -416,8 +419,8 @@ test "multiple binary operator two levels of precendence" {
     //        / \
     //       7   7
     const input = [_]Token{
-        .let,
         .{ .ident = "five" },
+        .colon,
         .{ .binary_operator = .assign },
         .{ .int = "5" },
         .{ .binary_operator = .add },

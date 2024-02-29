@@ -34,6 +34,7 @@ pub const Lexer = struct {
         self.skip_whitespace();
         const token: Token = switch (self.ch) {
             '\n' => .newline,
+            ':' => .colon,
             '=' => .{ .binary_operator = .assign },
             '"' => .{ .str = self.read_str() },
             '!' => .{ .unary_prefix_operator = .not },
