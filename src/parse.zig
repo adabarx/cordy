@@ -107,11 +107,9 @@ const Parser = struct {
 
     fn parse_expression(self: *Self, allocator: Allocator) ParseError!*Expression {
         var leaf = try self.parse_leaf(allocator);
-        // check for binary op
         while (self.read_token().get_binary_operator()) |curr_op| {
             _ = self.next_token();
-            var left = allocator.create(Expression)
-                catch return ParseError.OutOfMemory;
+            var left = allocator.create(Expression) catch return ParseError.OutOfMemory;
             left.* = leaf.*;
 
             var right = try self.parse_leaf(allocator);
@@ -126,7 +124,6 @@ const Parser = struct {
                     }
                 };
             } else {
-                _ = self.next_token(); // move off of BinaryOperator
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
@@ -145,6 +142,7 @@ const Parser = struct {
         left: *Expression,
         op: BinaryOperator
     ) ParseError!*Expression {
+        _ = self.next_token(); // move off of BinaryOperator
         var rv = allocator.create(Expression) catch return ParseError.OutOfMemory;
         const right = try self.parse_leaf(allocator);
         const next_op = self.read_token().get_binary_operator();
@@ -158,7 +156,6 @@ const Parser = struct {
                 }
             };
         } else {
-            _ = self.next_token(); // move off of BinaryOperator
             rv.* = .{
                 .binary = .{
                     .lhs = left,
