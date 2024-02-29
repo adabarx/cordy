@@ -57,7 +57,7 @@ const Parser = struct {
             .int, .flt, .str, .boolean => .{
                 .alloc = allocator,
                 .node = .{
-                    .expression = try self.parse_expression(allocator, 0)
+                    .expression = try self.parse_expression(allocator)
                 }
             },
             .eof => .{
@@ -78,16 +78,13 @@ const Parser = struct {
         const operator = self.read_token().get_binary_operator() orelse return ParseError.IllegalLetNotBinOp;
         if (operator != .assign) return ParseError.IllegalLetNotAssign;
         _ = self.next_token();
-        defer _ = self.next_token(); // hack to stop parser from hanging on to last leaf
-                                     // doesn't work when put at the end of parse_expression
-                                     // for some reason *sigh*
         return .{
             .alloc = allocator,
             .node = .{ .definition = .{
                 .variable = .{
                     .identifier = ident,
                     .mutable = mutt,
-                    .expression = try self.parse_expression(allocator, 0),
+                    .expression = try self.parse_expression(allocator),
                 }
             } }
         };
@@ -104,33 +101,23 @@ const Parser = struct {
                 return ParseError.IllegalExpression;
             },
         };
+        _ = self.next_token();
         return leaf;
     }
 
-    fn parse_expression(self: *Self, allocator: Allocator, recursion: u8) ParseError!*Expression {
+    fn parse_expression(self: *Self, allocator: Allocator) ParseError!*Expression {
         var leaf = try self.parse_leaf(allocator);
         // check for binary op
-        while (self.next_token().get_binary_operator()) |curr_op| {
+        while (self.read_token().get_binary_operator()) |curr_op| {
             _ = self.next_token();
             var left = allocator.create(Expression)
                 catch return ParseError.OutOfMemory;
             left.* = leaf.*;
 
             var right = try self.parse_leaf(allocator);
-            const next_op = self.peek_token(1).get_binary_operator()
-                orelse {
-                    leaf.* = .{
-                        .binary = .{
-                            .lhs = left,
-                            .operator = curr_op,
-                            .rhs = right,
-                        }
-                    };
-                    // no more binary operators
-                    return leaf;
-                };
+            const next_op = self.read_token().get_binary_operator();
 
-            if (next_op.precedence() <= curr_op.precedence()) {
+            if (next_op == null or next_op.?.precedence() <= curr_op.precedence()) {
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
@@ -139,19 +126,48 @@ const Parser = struct {
                     }
                 };
             } else {
-                allocator.destroy(right);
+                _ = self.next_token(); // move off of BinaryOperator
                 leaf.* = .{
                     .binary = .{
                         .lhs = left,
                         .operator = curr_op,
-                        .rhs = try self.parse_expression(allocator, recursion + 1),
+                        .rhs = try self.parse_increasing_prec(allocator, right, next_op.?),
                     }
                 };
             }
-            if (recursion > 0) return leaf;
         }
-        // _ = self.next_token();
         return leaf;
+    }
+
+    fn parse_increasing_prec(
+        self: *Self,
+        allocator: Allocator,
+        left: *Expression,
+        op: BinaryOperator
+    ) ParseError!*Expression {
+        var rv = allocator.create(Expression) catch return ParseError.OutOfMemory;
+        const right = try self.parse_leaf(allocator);
+        const next_op = self.read_token().get_binary_operator();
+
+        if (next_op == null or next_op.?.precedence() <= op.precedence()) {
+            rv.* = .{
+                .binary = .{
+                    .lhs = left,
+                    .operator = op,
+                    .rhs = right,
+                }
+            };
+        } else {
+            _ = self.next_token(); // move off of BinaryOperator
+            rv.* = .{
+                .binary = .{
+                    .lhs = left,
+                    .operator = op,
+                    .rhs = try self.parse_increasing_prec(allocator, right, next_op.?),
+                }
+            };
+        }
+        return rv;
     }
 
     fn parse_literal(self: *Self) ParseError!Literal {
