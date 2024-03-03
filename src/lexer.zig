@@ -43,7 +43,13 @@ pub const Lexer = struct {
                     return self.read_number();
                 }
                 else .{ .binary_operator = .subtract },
-            '+' => .{ .binary_operator = .add },
+            '+' =>
+                if (self.peek_char() == '=') eq: {
+                    self.read_char();
+                    break :eq .{ .binary_operator = .add_assign };
+                } else op: {
+                    break :op .{ .binary_operator = .add };
+                },
             '*' => .{ .binary_operator = .multiply },
             '/' => .{ .binary_operator = .divide },
             '0'...'9' => return self.read_number(),

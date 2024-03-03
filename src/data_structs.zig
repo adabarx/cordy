@@ -149,6 +149,11 @@ pub const Expression = union(enum) {
                 print("Operator: {s}\n", .{switch (bin.operator) {
                     .assign => "=",
 
+                    .add_assign => "+=",
+                    .sub_assign => "-=",
+                    .mult_assign => "*=",
+                    .div_assign => "/=",
+
                     .add => "+",
                     .subtract => "-",
                     .multiply => "*",
@@ -288,10 +293,10 @@ pub const UnaryPrefixOperator = union(enum) {
 
 pub const BinaryOperator = union(enum) {
     assign,        // =
-    // add_assign,    // +=
-    // sub_assign,    // -=
-    // mult_assign,   // *=
-    // div_assign,    // /=
+    add_assign,    // +=
+    sub_assign,    // -=
+    mult_assign,   // *=
+    div_assign,    // /=
 
     and_tok,       // and
     or_tok,        // or
@@ -329,7 +334,8 @@ pub const BinaryOperator = union(enum) {
                 .lesser_than, .greater_equal, .lesser_equal, => 3,
             .and_tok => 2,
             .or_tok => 1,
-            .assign => 0,
+            .assign, .add_assign, .mult_assign,
+                .div_assign, .sub_assign => 0,
         };
     }
 };

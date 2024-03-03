@@ -95,6 +95,11 @@ fn gen_operator(op: BinaryOperator) []const u8 {
         .greater_equal => " >= ",
         .lesser_equal => " <= ",
 
+        .sub_assign => " -= ",
+        .add_assign => " += ",
+        .mult_assign => " *= ",
+        .div_assign => " /= ",
+
         .subtract => " - ",
         .add => " + ",
         .multiply => " * ",
