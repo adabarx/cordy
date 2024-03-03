@@ -76,8 +76,6 @@ pub const Lexer = struct {
         } else {
             self.ch = self.input[self.read_position];
         }
-        if (self.ch == '\n') std.debug.print("newline\n", .{})
-        else std.debug.print("{c}\n", .{self.ch});
 
         self.position = self.read_position;
         self.read_position += 1;
@@ -132,25 +130,19 @@ pub fn tokenize(allocator: std.mem.Allocator, input: []const u8) ![]const Token 
     var rv = std.ArrayList(Token).init(allocator);
     defer rv.deinit();
 
-    std.debug.print("\n", .{});
     var curr_token = lex.next_token();
     while (true) {
         var next_token = lex.next_token();
 
-        std.debug.print("{any}\n", .{curr_token});
-
         if (curr_token == .newline and next_token == .newline) {
-            std.debug.print("cut newline double\n", .{});
             curr_token = next_token;
             next_token = lex.next_token();
         }
         if (curr_token == .newline and next_token == .binary_operator) {
-            std.debug.print("cut newline before op\n", .{});
             curr_token = next_token;
             next_token = lex.next_token();
         }
         if (curr_token == .binary_operator and next_token == .newline) {
-            std.debug.print("cut newline after op\n", .{});
             next_token = lex.next_token();
         }
         // if (curr_token == .{ .unary_prefix_operator = .not }) {
@@ -176,7 +168,6 @@ pub fn tokenize(allocator: std.mem.Allocator, input: []const u8) ![]const Token 
         if (curr_token == .eof) break;
         curr_token = next_token;
     }
-    std.debug.print("\n", .{});
     return rv.toOwnedSlice();
 }
 
