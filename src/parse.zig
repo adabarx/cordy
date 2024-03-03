@@ -48,10 +48,11 @@ const Parser = struct {
     pub fn parse_statement(self: *Self, allocator: Allocator) ParseError!ASTNode {
         std.debug.print("parse statement: {any}\n", .{self.read_token()});
         while (self.read_token() == .newline) _ = self.next_token();
+        std.debug.print("parse statement after newline: {any}\n", .{self.read_token()});
 
         return switch (self.read_token()) {
             .ident => |id| blk: {
-                if (self.next_token() == .colon) {
+                if (self.peek_token(1) == .colon) {
                     break :blk self.parse_assign(allocator, id);
                 } else {
                     std.debug.print("ident expr: {any}\n", .{self.read_token()});
@@ -78,6 +79,7 @@ const Parser = struct {
     }
 
     fn parse_assign(self: *Self, allocator: Allocator, ident: []const u8) ParseError!ASTNode {
+        _ = self.next_token();
         var mutt = false;
         if (self.next_token() == .mut) {
             mutt = true;
