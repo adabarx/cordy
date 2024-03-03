@@ -46,12 +46,21 @@ const Parser = struct {
     }
 
     pub fn parse_statement(self: *Self, allocator: Allocator) ParseError!ASTNode {
+        std.debug.print("parse statement: {any}\n", .{self.read_token()});
         while (self.read_token() == .newline) _ = self.next_token();
 
         return switch (self.read_token()) {
             .ident => |id| blk: {
                 if (self.next_token() == .colon) {
                     break :blk self.parse_assign(allocator, id);
+                } else {
+                    std.debug.print("ident expr: {any}\n", .{self.read_token()});
+                    break :blk .{
+                        .alloc = allocator,
+                        .node = .{
+                            .expression = try self.parse_expression(allocator)
+                        }
+                    };
                 }
             },
             .int, .flt, .str, .boolean => .{
@@ -106,6 +115,7 @@ const Parser = struct {
     }
 
     fn parse_expression(self: *Self, allocator: Allocator) ParseError!*Expression {
+        std.debug.print("parse expr: {any}\n", .{self.read_token()});
         var leaf = try self.parse_leaf(allocator);
         while (self.read_token().get_binary_operator()) |curr_op| {
             _ = self.next_token();
@@ -195,6 +205,9 @@ const Parser = struct {
 
 pub fn parse_tokens(allocator: std.mem.Allocator, tokens: []const Token) []const ASTNode {
     var parser: Parser = .{ .input = tokens };
+
+    for (tokens) |tok| std.debug.print("{any}\n", .{tok});
+    std.debug.print("\n", .{});
 
     var ast = std.ArrayList(ASTNode).init(allocator);
     defer ast.deinit();

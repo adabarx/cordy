@@ -59,7 +59,7 @@ fn gen_expression(allocator: std.mem.Allocator, input: *const Expression) ![]con
     defer output.deinit();
 
     switch (input.*) {
-        .identifier => unreachable,
+        .identifier => |id| try output.appendSlice(id),
         .literal => |lit| {
             const rv = try gen_literal(allocator, lit);
             defer allocator.free(rv);
