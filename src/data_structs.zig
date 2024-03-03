@@ -272,35 +272,53 @@ pub const Token = union(enum) {
     }
 };
 
+pub const UnaryPostfixOperator = union(enum) {
+    return_expr,      // ;;
+    return_blck,      // ;:{block name}
+    return_func,      // ;:fn
+    unwrap_or_return, // ?
+    unwrap_or_panic,  // !
+    deref,            // *
+    reference,        // &
+};
+
 pub const UnaryPrefixOperator = union(enum) {
-    not,
-    negative,
+    not
 };
 
 pub const BinaryOperator = union(enum) {
-    assign,
+    assign,        // =
+    // add_assign,    // +=
+    // sub_assign,    // -=
+    // mult_assign,   // *=
+    // div_assign,    // /=
 
-    and_tok,
-    or_tok,
-    // these will come later
-    // xor,
-    // not_and,
-    // not_or,
-    // not_xor,
+    and_tok,       // and
+    or_tok,        // or
 
-    equal,
-    not_equal,
-    greater_than,
-    lesser_than,
-    greater_equal,
-    lesser_equal,
+    equal,         // ==
+    not_equal,     // !=
+    greater_than,  // >
+    lesser_than,   // <
+    greater_equal, // >=
+    lesser_equal,  // <=
 
-    add,
-    subtract,
-    multiply,
-    divide,
+    add,           // +
+    subtract,      // -
+    multiply,      // *
+    divide,        // /
 
-    struct_access,
+    struct_access, // .
+
+    // future planned operators
+    //
+    // xor,           // xor
+    // not_and,       // !and
+    // not_or,        // !or
+    // not_xor,       // !xor
+    //
+    // pipe,          // |>
+    // hack_pipe,     // |->
 
     pub fn precedence(self: *const BinaryOperator) u8 {
         return switch (self.*) {
