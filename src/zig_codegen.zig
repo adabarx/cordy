@@ -8,21 +8,20 @@ const Literal = data_structs.Literal;
 const BinaryOperator = data_structs.BinaryOperator;
 
 pub fn generate(allocator: std.mem.Allocator, input: []const ASTNode) ![]const u8 {
-    var output = std.ArrayList(u8).init(allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    var output = std.ArrayList(u8).init(arena.allocator());
     defer output.deinit();
 
     for (input) |statement| {
         switch (statement.node) {
-            .definition => |def| {
-                const rv = try gen_definition(allocator, def);
-                defer allocator.free(rv);
-                try output.appendSlice(rv);
-            },
-            .expression => |exp| {
-                const rv = try gen_expression(allocator, exp);
-                defer allocator.free(rv);
-                try output.appendSlice(rv);
-            },
+            .definition => |def|
+                try output.appendSlice(
+                    try gen_definition(arena.allocator(), def)
+                ),
+            .expression => |exp|
+                try output.appendSlice(
+                    try gen_expression(arena.allocator(), exp)
+                ),
             .eof => break,
         }
         try output.appendSlice(";\n");
@@ -45,9 +44,7 @@ fn gen_definition(allocator: std.mem.Allocator, input: Definition) ![]const u8 {
             try output.appendSlice(variable.identifier);
             try output.appendSlice(" = ");
 
-            const rv = try gen_expression(allocator, variable.expression);
-            defer allocator.free(rv);
-            try output.appendSlice(rv);
+            try output.appendSlice(try gen_expression(allocator, variable.expression));
         },
     }
 
@@ -60,21 +57,18 @@ fn gen_expression(allocator: std.mem.Allocator, input: *const Expression) ![]con
 
     switch (input.*) {
         .identifier => |id| try output.appendSlice(id),
-        .literal => |lit| {
-            const rv = try gen_literal(allocator, lit);
-            defer allocator.free(rv);
-
-            try output.appendSlice(rv);
-        },
+        .literal => |lit|
+            try output.appendSlice(
+                try gen_literal(allocator, lit)
+            ),
         .binary => |expr| {
-            const lhs = try gen_expression(allocator, expr.lhs);
-            const rhs = try gen_expression(allocator, expr.rhs);
-            defer allocator.free(lhs);
-            defer allocator.free(rhs);
-
-            try output.appendSlice(lhs);
+            try output.appendSlice(
+                try gen_expression(allocator, expr.lhs)
+            );
             try output.appendSlice(gen_operator(expr.operator));
-            try output.appendSlice(rhs);
+            try output.appendSlice(
+                try gen_expression(allocator, expr.rhs)
+            );
         },
     }
 
@@ -114,11 +108,9 @@ fn gen_literal(allocator: std.mem.Allocator, input: Literal) ![]const u8 {
     defer output.deinit();
 
     switch (input) {
-        .int => |int| {
-            const rv = try std.fmt.allocPrint(allocator, "{d}", .{int});
-            defer allocator.free(rv);
-            try output.appendSlice(rv);
-        },
+        .int => |int| try output.appendSlice(
+            try std.fmt.allocPrint(allocator, "{d}", .{int})
+        ),
         .flt => |flt| try output.appendSlice(flt),
         .str => |str| {
             try output.append('"');
@@ -126,11 +118,8 @@ fn gen_literal(allocator: std.mem.Allocator, input: Literal) ![]const u8 {
             try output.append('"');
         },
         .boolean => |boolean| {
-            if (boolean) {
-                try output.appendSlice("true");
-            } else {
-                try output.appendSlice("false");
-            }
+            if (boolean) try output.appendSlice("true")
+            else try output.appendSlice("false");
         },
     }
 
